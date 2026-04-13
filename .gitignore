@@ -1,0 +1,7 @@
+*.d
+*.img
+*.map
+*.o
+*.vxd
+/compile_commands.json
+/vmlinux*

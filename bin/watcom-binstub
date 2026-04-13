@@ -1,0 +1,3 @@
+#!/bin/bash -eu
+export PATH="$WATCOM/binl:$PATH"
+exec "${0##*/}" "$@"

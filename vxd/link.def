@@ -1,0 +1,10 @@
+option quiet
+option map=wsl9x.map
+system win_vxd
+option nocaseexact
+segment '.text' PRELOAD NONDISCARDABLE
+segment '.data' PRELOAD NONDISCARDABLE
+option nodefaultlibs
+option modname=WSL9X
+export WSL9X_DDB.1
+name wsl9x.vxd

@@ -1,0 +1,3 @@
+#drive a: file="floppy.img" mtools_skip_check=1
+drive c: file="hdd.img" partition=1 mtools_skip_check=1
+drive z: file="hdd.base.img" partition=1 mtools_skip_check=1

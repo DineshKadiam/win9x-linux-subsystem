@@ -1,0 +1,2 @@
+device=WSL9X.VXD
+shell=C:\command.com /e:4096 /p
