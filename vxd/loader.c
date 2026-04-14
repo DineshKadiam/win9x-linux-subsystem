@@ -11,7 +11,10 @@ static const u32 KERNEL_SIZE = 0x68e000;
 static const u32 PAGE_SIZE = 0x1000;
 static const u32 BUFFER_SIZE = 0x8000;
 
+typedef void(*kernel_entry_t)(void);
+
 u32 kernel_base = 0;
+kernel_entry_t kernel_entry = NULL;
 
 bool wsl9x_reserve_addresses(void)
 {
@@ -84,6 +87,52 @@ static bool read_struct(FileHandle kernel, void* out, size_t size)
     return true;
 }
 
+static bool load_segment(FileHandle kernel, Elf32_Phdr* phdr)
+{
+    if (phdr->p_type != PT_LOAD) {
+        return true;
+    }
+
+    printf("wsl9x: LOAD 0x%08lx: size %lu, file offset %lu, flags %lx\n",
+        phdr->p_vaddr,
+        phdr->p_filesz,
+        phdr->p_offset,
+        phdr->p_flags);
+
+    if (phdr->p_filesz != phdr->p_memsz) {
+        printf("  filesz != memsz\n");
+        return false;
+    }
+
+    if (dos_seek(kernel, phdr->p_offset)) {
+        printf("  seek error: offset=%lu\n", phdr->p_offset);
+        return false;
+    }
+
+    u32 offset = 0;
+    u8* load_ptr = (u8*)phdr->p_vaddr;
+
+    while (offset < phdr->p_memsz) {
+        u32 size = phdr->p_memsz - offset;
+        if (size > BUFFER_SIZE) {
+            size = BUFFER_SIZE;
+        }
+
+        ssize_t rc = dos_read(kernel, temp_data_seg, (u16)size);
+        if (rc != (ssize_t)size) {
+            printf("  read error: %ld\n", rc);
+            return false;
+        }
+
+        printf(".");
+        memcpy32(load_ptr, temp_data_ptr, size);
+        load_ptr += size;
+        offset += size;
+    }
+
+    return true;
+}
+
 static bool load_elf(FileHandle kernel)
 {
     ssize_t rc;
@@ -103,6 +152,8 @@ static bool load_elf(FileHandle kernel)
         return false;
     }
 
+    kernel_entry = (kernel_entry_t)ehdr.e_entry;
+
     for (u32 i = 0; i < (u32)ehdr.e_phnum; i++) {
         u32 phoff = ehdr.e_phoff + i * sizeof(Elf32_Phdr);
         printf("phoff=%lu\n", phoff);
@@ -117,45 +168,8 @@ static bool load_elf(FileHandle kernel)
             printf("wsl9x loader: read phdr error\n");
         }
 
-        if (phdr.p_type != PT_LOAD) {
-            continue;
-        }
-
-        printf("wsl9x: [#%lu] LOAD 0x%08lx: size %lu, file offset %lu, flags %lx\n",
-            i,
-            phdr.p_vaddr,
-            phdr.p_filesz,
-            phdr.p_offset,
-            phdr.p_flags);
-
-        if (phdr.p_filesz != phdr.p_memsz) {
-            printf("  filesz != memsz\n");
+        if (!load_segment(kernel, &phdr)) {
             return false;
-        }
-
-        if (dos_seek(kernel, phdr.p_offset)) {
-            printf("  seek error: offset=%lu\n", phdr.p_offset);
-            return false;
-        }
-
-        u32 offset = 0;
-        u8* load_ptr = (u8*)phdr.p_vaddr;
-
-        while (offset < phdr.p_memsz) {
-            u32 size = phdr.p_memsz - offset;
-            if (size > BUFFER_SIZE) {
-                size = BUFFER_SIZE;
-            }
-
-            rc = dos_read(kernel, temp_data_seg, (u16)size);
-            if (rc != (ssize_t)size) {
-                printf("  read error: %ld\n", rc);
-                return false;
-            }
-
-            memcpy32(load_ptr, temp_data_ptr, size);
-            load_ptr += size;
-            offset += size;
         }
     }
 
@@ -164,29 +178,31 @@ static bool load_elf(FileHandle kernel)
 
 bool wsl9x_load_kernel(void)
 {
-    bool ok = false;
-
     if (!allocate_memory()) {
-        goto out;
+        return false;
     }
 
     const char* kernel_path = "\\VMLINUX.ELF";
     FileHandle vmlinux = dos_open(kernel_path);
     if (!vmlinux) {
         printf("wsl9x_load_kernel: open %s failed\n", kernel_path);
-        goto out;
+        return false;
     }
 
     printf("Opened vmlinux.elf: %lx\n", (u32)vmlinux);
 
     allocate_temp_data();
-
-    load_elf(vmlinux);
-
+    bool ok = load_elf(vmlinux);
     free_temp_data();
 
     dos_close(vmlinux);
 
-out:
-    return ok;
+    if (!ok) {
+        return false;
+    }
+
+    __asm__ volatile("xchgw %bx, %bx");
+    kernel_entry();
+    return true;
 }
+
