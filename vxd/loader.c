@@ -197,12 +197,11 @@ bool wsl9x_load_kernel(void)
 
     dos_close(vmlinux);
 
-    if (!ok) {
-        return false;
-    }
-
-    __asm__ volatile("xchgw %bx, %bx");
-    kernel_entry();
-    return true;
+    return ok;
 }
 
+void wsl9x_start_kernel(void)
+{
+    __asm__ volatile("xchgw %bx, %bx");
+    kernel_entry();
+}

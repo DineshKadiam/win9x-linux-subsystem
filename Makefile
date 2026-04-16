@@ -8,7 +8,7 @@ wsl9x-include = \
 	-I $(LINUX)/include \
 	-I $(LINUX)/arch/um/os-Win95/include
 
-vxd-objs = vxd/wsl9x.o vxd/loader.o vxd/vxdwraps.o vxd/fs.o
+vxd-objs = vxd/wsl9x.o vxd/loader.o vxd/vxdwraps.o vxd/fs.o vxd/fault.o
 vxd-deps = $(vxd-objs:.o=.d)
 vxd-nasm-flags = -Iddk -Ivxd -felf32 -w-pp-macro-params-legacy
 vxd-cc = i386-linux-musl-gcc
@@ -24,6 +24,12 @@ clean:
 .PHONY: bochs
 bochs: hdd.img
 	bochs -qf bochs.bxrc -debugger -rc <(echo c)
+
+.PHONY: gdb
+gdb: hdd.img
+gdb: export PATH := $(BOCHSGDB)/bin:$(PATH)
+gdb:
+	bochs -qf bochs-gdb.bxrc
 
 .PHONY: compile_commands.json
 compile_commands.json: clean

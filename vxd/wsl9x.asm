@@ -1,9 +1,26 @@
 %include "ddk/vxdn.asm"
+%include "prelude.asm"
+
 %define WSL9X_DEVICE_ID 0x8381
 %define PAGE_SIZE 0x1000
 
+%define FAULT_MASK (0xff << 8)
+%define FAULT_VMM  (0x01 << 8)
+%define FAULT_PM   (0x02 << 8)
+
+%define TRAP_MASK  (0xff)
+; undefined opcode
+%define TRAP_UD 0x06
+; general protection fault
+%define TRAP_GP 0x0d
+; page fault
+%define TRAP_PF 0x0e
+
+extern WSL9x_Printk
 extern wsl9x_reserve_addresses
 extern wsl9x_load_kernel
+extern wsl9x_start_kernel
+extern wsl9x_fault
 
 section .data
 
@@ -11,23 +28,44 @@ Declare_Virtual_Device WSL9X, "WSL9X", 1, 0, WSL9X_DEVICE_ID, UNDEFINED_INIT_ORD
 
 section .text
 
+
 WSL9X_Control:
+    cmp eax, SYS_CRITICAL_INIT
+    je sys_critical_init
+
     cmp eax, DEVICE_INIT
     je device_init
 
     cmp eax, SYS_VM_INIT
     je sys_vm_init
 
+    cmp eax, CREATE_THREAD
+    je create_thread
+
     clc
     ret
+
+
+sys_critical_init:
+    clc
+    ret
+
 
 device_init:
     call wsl9x_reserve_addresses
     call wsl9x_load_kernel
     jmp control_return
 
+
 sys_vm_init:
+    call install_fault_handlers
+    call wsl9x_start_kernel
     jmp control_return
+
+
+create_thread:
+    ret
+
 
 control_return:
     test eax, eax
@@ -39,33 +77,120 @@ control_return:
     stc
     ret
 
+%macro install_fault 3
+    mov eax, %2
+    mov esi, trap_%3
+    VMMCall Hook_%1_Fault
+    jc .err
+    mov [prev_fault_handler.%3], esi
+%endmacro
+
+%macro dispatch_fault 2
+    pushf
+    pusha
+
+    push ebp
+    push ebx
+    push %1
+    call wsl9x_fault
+    add esp, 12
+    test eax, eax
+    jz .continue
+
+    popa
+    popf
+    ret
+
+.continue:
+    popa
+    popf
+    jmp [prev_fault_handler.%2]
+%endmacro
+
+install_fault_handlers:
+    install_fault VMM, TRAP_GP, vmm_gp
+    install_fault VMM, TRAP_PF, vmm_pf
+    install_fault VMM, TRAP_UD, vmm_ud
+
+    install_fault PM, TRAP_GP, pm_gp
+    install_fault PM, TRAP_PF, pm_pf
+    install_fault PM, TRAP_UD, pm_ud
+
+    ret
+.err:
+    push .msg
+    call printf
+    add esp, 4
+    ret
+    .msg db "error installing fault handler"
+
+install_vmm_fault_handler:
+    VMMCall Hook_VMM_Fault
+    jc .err
+    mov [edi], esi
+.err:
+    ret
+
+section .data
+
+prev_fault_handler:
+    .vmm_ud dd 0
+    .vmm_gp dd 0
+    .vmm_pf dd 0
+    .pm_ud dd 0
+    .pm_gp dd 0
+    .pm_pf dd 0
+
+section .text
+
+trap_vmm_gp:
+    dispatch_fault TRAP_GP | FAULT_VMM, vmm_gp
+
+trap_vmm_pf:
+    dispatch_fault TRAP_PF | FAULT_VMM, vmm_pf
+
+trap_vmm_ud:
+    dispatch_fault TRAP_UD | FAULT_VMM, vmm_ud
+
+trap_pm_gp:
+    dispatch_fault TRAP_GP | FAULT_PM, pm_gp
+
+trap_pm_pf:
+    dispatch_fault TRAP_PF | FAULT_PM, pm_pf
+
+trap_pm_ud:
+    dispatch_fault TRAP_UD | FAULT_PM, pm_ud
+
+
 WSL9X_API:
     ret
+
 
 ;; Debug logging
 
 global printf
 printf:
-    ; pop return address into edi, push prepended buffer arg
-    ; _Sprintf preserves edi
-    pop edi
-    push buffer
-    VMMCall _Sprintf
+    ; pop return address into ebx, push prepended buffer arg
+    ; _Sprintf preserves ebx
+    pop ebx
+    VMMCall _Sprintf, buffer
+    push ebx
+    ; setup proper stack frame now
+    push ebp
+    mov ebp, esp
+    ; preserve esi
+    push esi
     ; sprintf returns count in eax
-    mov ecx, eax
-    mov esi, buffer
-    call bochs_debug_print
-    ; pop buffer and push return address back, then return
-    add esp, 4
-    push edi
+    push eax
+    push buffer
+    call WSL9x_Printk
+    add esp, 8
+    ; restore esi and return
+    pop esi
+    leave
     ret
 
-; ESI: pointer to buffer, ECX: count of bytes
-; uses DX
-bochs_debug_print:
-    mov dx, 0xe9
-    rep outsb
-    ret
+
 
 section .bss
 buffer resb 256
