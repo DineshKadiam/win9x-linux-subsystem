@@ -5,6 +5,7 @@
 #include <wsl9x/mem.h>
 #include <wsl9x/task.h>
 #include <wsl9x/sync.h>
+#include <wsl9x/entry.h>
 
 static const u32 PAGE_SHIFT = 12;
 static const ulong STACK_SIZE = 0x4000; // 16 KiB
@@ -49,18 +50,62 @@ bool wsl9x_init_entry(void)
 
 static void entry_stack_top(u32 param)
 {
-    (void)param;
-    kernel_entry();
+    struct wsl9x_entry* entry = (void*)param;
+    return kernel_entry(entry);
 }
 
-static void enter_kernel(void)
+void wsl9x__schedule_kernel_resume(void);
+
+static void enter_kernel(struct wsl9x_entry* entry)
 {
     VMM_EnterMutex(mutex, 0);
-    VMM_Call_On_My_Stack(entry_stack_top, 0, entry_stack, STACK_SIZE);
+    VMM_Call_On_My_Stack(entry_stack_top, (u32)entry, entry_stack, STACK_SIZE);
     VMM_LeaveMutex(mutex);
+
+    switch (entry->result) {
+    case WSL9X_IDLE:
+        // nothing to do. wait until there's an event!
+        printf("kernel is now idle. not scheduling\n");
+        break;
+    case WSL9X_YIELD:
+        // schedule another resume soon
+        wsl9x__schedule_kernel_resume();
+        break;
+    case WSL9X_PANIC:
+        printf("kernel panicked!!");
+        __asm__ volatile ("xchgw %bx, %bx");
+        break;
+    }
+}
+
+void wsl9x_resume_kernel(void)
+{
+    struct wsl9x_entry entry = { 0 };
+    entry.reason = WSL9X_RESUME;
+
+    // printf("wsl9x: resuming kernel\n");
+    enter_kernel(&entry);
 }
 
 void wsl9x_start_kernel(void)
 {
-    enter_kernel();
+    char* argv[] = {
+        "vmlinux",
+        "init=/bin/sh",
+        "rdinit=/bin/sh",
+        "console=bootcon",
+    };
+
+    int argc = sizeof(argv) / sizeof(*argv);
+
+    char* envp[] = { 0 };
+
+    struct wsl9x_entry entry = { 0 };
+    entry.reason = WSL9X_START;
+    entry.as.start.argc = argc;
+    entry.as.start.argv = argv;
+    entry.as.start.envp = envp;
+
+    printf("wsl9x: starting kernel\n");
+    enter_kernel(&entry);
 }

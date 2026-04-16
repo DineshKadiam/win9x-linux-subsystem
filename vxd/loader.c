@@ -3,6 +3,7 @@
 #include "fs.h"
 #include "prelude.h"
 #include "vxdwraps.h"
+#include "wsl9x/entry.h"
 
 #include <wsl9x/mem.h>
 
@@ -12,7 +13,7 @@ static const u32 PAGE_SIZE = 0x1000;
 static const u32 BUFFER_SIZE = 0x8000;
 
 u32 kernel_base = 0;
-kernel_entry_t kernel_entry = NULL;
+wsl9x_entry_func_t kernel_entry = NULL;
 
 bool wsl9x_reserve_addresses(void)
 {
@@ -150,7 +151,7 @@ static bool load_elf(FileHandle kernel)
         return false;
     }
 
-    kernel_entry = (kernel_entry_t)ehdr.e_entry;
+    kernel_entry = (wsl9x_entry_func_t)ehdr.e_entry;
 
     for (u32 i = 0; i < (u32)ehdr.e_phnum; i++) {
         u32 phoff = ehdr.e_phoff + i * sizeof(Elf32_Phdr);

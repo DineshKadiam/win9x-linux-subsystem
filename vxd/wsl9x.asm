@@ -21,6 +21,7 @@ extern wsl9x_init_entry
 extern wsl9x_reserve_addresses
 extern wsl9x_load_kernel
 extern wsl9x_start_kernel
+extern wsl9x_resume_kernel
 extern wsl9x_fault
 
 section .data
@@ -78,6 +79,55 @@ control_return:
 .err:
     stc
     ret
+
+
+global wsl9x__schedule_kernel_resume
+wsl9x__schedule_kernel_resume:
+    push ebp
+    mov ebp, esp
+
+    push esi
+    push edi
+    push ebx
+
+    ; push .msg1
+    ; call printf
+    ; add esp, 4
+
+    VMMCall Get_Sys_VM_Handle
+    ; mov esi, .callback
+    ; xor edx, edx
+    ; VMMCall Schedule_VM_Event
+
+    mov eax, LOW_PRI_DEVICE_BOOST
+    mov ecx, PEF_ALWAYS_SCHED | PEF_WAIT_FOR_STI | PEF_WAIT_NOT_CRIT | PEF_WAIT_NOT_TIME_CRIT
+    xor edx, edx
+    mov esi, .callback
+    xor edi, edi
+    VMMCall Call_Priority_VM_Event
+
+    ; push .msg2
+    ; call printf
+    ; add esp, 4
+
+    pop ebx
+    pop edi
+    pop esi
+
+    leave
+    ret
+
+; .msg1 db "will schedule kernel resume", 10, 0
+; .msg2 db "did schedule kernel resume", 10, 0
+; .msg3 db "kernel resume callback fired!", 10, 0
+
+.callback:
+    ; push .msg3
+    ; call printf
+    ; add esp, 4
+    call wsl9x_resume_kernel
+    ret
+
 
 %macro install_fault 3
     mov eax, %2
