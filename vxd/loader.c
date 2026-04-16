@@ -11,8 +11,6 @@ static const u32 KERNEL_SIZE = 0x68e000;
 static const u32 PAGE_SIZE = 0x1000;
 static const u32 BUFFER_SIZE = 0x8000;
 
-typedef void(*kernel_entry_t)(void);
-
 u32 kernel_base = 0;
 kernel_entry_t kernel_entry = NULL;
 
@@ -156,7 +154,6 @@ static bool load_elf(FileHandle kernel)
 
     for (u32 i = 0; i < (u32)ehdr.e_phnum; i++) {
         u32 phoff = ehdr.e_phoff + i * sizeof(Elf32_Phdr);
-        printf("phoff=%lu\n", phoff);
 
         if ((rc = dos_seek(kernel, phoff))) {
             printf("wsl9x loader: seek error: rc=%ld, phoff=%lu\n", rc, phoff);
@@ -198,10 +195,4 @@ bool wsl9x_load_kernel(void)
     dos_close(vmlinux);
 
     return ok;
-}
-
-void wsl9x_start_kernel(void)
-{
-    __asm__ volatile("xchgw %bx, %bx");
-    kernel_entry();
 }

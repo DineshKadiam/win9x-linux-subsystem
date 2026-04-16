@@ -17,6 +17,7 @@
 %define TRAP_PF 0x0e
 
 extern WSL9x_Printk
+extern wsl9x_init_entry
 extern wsl9x_reserve_addresses
 extern wsl9x_load_kernel
 extern wsl9x_start_kernel
@@ -52,6 +53,7 @@ sys_critical_init:
 
 
 device_init:
+    call wsl9x_init_entry
     call wsl9x_reserve_addresses
     call wsl9x_load_kernel
     jmp control_return

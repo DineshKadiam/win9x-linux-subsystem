@@ -2,13 +2,14 @@ ifndef LINUX
 LINUX = $(error must define LINUX env var)
 endif
 
-CFLAGS = -std=c11 -Wall -Wextra -Wstrict-prototypes -funsigned-char
+CFLAGS = -std=c11 -Wall -Wextra -Werror -Wstrict-prototypes -funsigned-char \
+	-Wno-error=unused-parameter
 
 wsl9x-include = \
 	-I $(LINUX)/include \
 	-I $(LINUX)/arch/um/os-Win95/include
 
-vxd-objs = vxd/wsl9x.o vxd/loader.o vxd/vxdwraps.o vxd/fs.o vxd/fault.o
+vxd-objs = vxd/wsl9x.o vxd/loader.o vxd/vxdwraps.o vxd/fs.o vxd/fault.o vxd/entry.o
 vxd-deps = $(vxd-objs:.o=.d)
 vxd-nasm-flags = -Iddk -Ivxd -felf32 -w-pp-macro-params-legacy
 vxd-cc = i386-linux-musl-gcc

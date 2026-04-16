@@ -1,6 +1,8 @@
 %include "ddk/vxdn.asm"
 %include "prelude.asm"
 
+; extern printf
+
 %macro cproc_dispatcher_prologue 1
     push ebp
     mov ebp, esp
@@ -57,6 +59,11 @@ def_vmm_cproc VMM_Allocate_GDT_Selector, 3
 def_vmm_cproc VMM_Allocate_LDT_Selector, 5
 def_vmm_cproc VMM_SetDescriptor, 5
 def_vmm_cproc VMM_BuildDescriptorDWORDs, 5
+def_vmm_cproc VMM_Call_On_My_Stack, 4
+def_vmm_cproc VMM_CreateMutex, 2
+def_vmm_cproc VMM_EnterMutex, 2
+def_vmm_cproc VMM_LeaveMutex, 1
+def_vmm_cproc VMM_DestroyMutex, 1
 
 def_vxd_cproc VTD_Get_Real_Time, 0
 def_vxd_cproc VTD_Get_Date_And_Time, 0
