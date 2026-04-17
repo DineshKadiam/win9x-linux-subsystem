@@ -16,17 +16,23 @@
 ; page fault
 %define TRAP_PF 0x0e
 
+
 extern WSL9x_Printk
 extern wsl9x_init_entry
 extern wsl9x_reserve_addresses
 extern wsl9x_load_kernel
-extern wsl9x_start_kernel
-extern wsl9x_resume_kernel
+extern wsl9x_notify_thread_switched
 extern wsl9x_fault
+extern wsl9x__start_kernel
+extern wsl9x__resume_kernel
+; extern thread_task_struct_offset
 
 section .data
 
 Declare_Virtual_Device WSL9X, "WSL9X", 1, 0, WSL9X_DEVICE_ID, UNDEFINED_INIT_ORDER, WSL9X_API, WSL9X_API
+
+global wsl9x_thread
+wsl9x_thread dd 0
 
 section .text
 
@@ -41,8 +47,8 @@ WSL9X_Control:
     cmp eax, SYS_VM_INIT
     je sys_vm_init
 
-    cmp eax, CREATE_THREAD
-    je create_thread
+    ; cmp eax, CREATE_THREAD
+    ; je create_thread
 
     clc
     ret
@@ -55,29 +61,99 @@ sys_critical_init:
 
 device_init:
     call wsl9x_init_entry
-    call wsl9x_reserve_addresses
-    call wsl9x_load_kernel
-    jmp control_return
-
-
-sys_vm_init:
-    call install_fault_handlers
-    call wsl9x_start_kernel
-    jmp control_return
-
-
-create_thread:
-    ret
-
-
-control_return:
     test eax, eax
     jz .err
-.ok:
+
+    call wsl9x_reserve_addresses
+    test eax, eax
+    jz .err
+
+    call wsl9x_load_kernel
+    test eax, eax
+    jz .err
+
     clc
     ret
 .err:
     stc
+    ret
+
+
+; create_thread:
+;     ; zero initialize thread data slot:
+;     xor eax, eax
+;     mov ebx, [thread_task_struct_offset]
+;     mov [edi + ebx], eax
+;     clc
+;     ret
+
+
+thread_switched:
+    push ebp
+    mov ebp, esp
+
+    ; xchg bx, bx
+    cmp dword [edi + TCB_ThreadType], WSL9X_THREAD_TYPE
+    jne .out
+
+    ; push edi
+    ; push eax
+
+    ; VMMCall Get_Cur_Thread_Handle
+    ; xchg bx, bx
+
+    ; call wsl9x_notify_thread_switched
+    ; add esp, 8
+
+.out:
+    leave
+    ret
+
+
+thread_init_callback:
+    push .msg
+    call printf
+    add esp, 4
+
+    xchg bx, bx
+    ud2
+    ret
+    .msg db "thread_init_callback", 10, 0
+
+
+sys_vm_init:
+    call install_fault_handlers
+    test eax, eax
+    jz .err
+
+    VMMCall VMMCreateThread, ss, 0x4000000, cs, 0x40000000, ds, es, WSL9X_THREAD_TYPE, thread_init_callback, 0
+    test eax, eax
+    jz .err
+    mov [wsl9x_thread], eax
+
+    mov edi, eax
+    mov esi, wsl9x_thread_event_callback
+    mov edx, wsl9x__start_kernel
+    VMMCall Schedule_Thread_Event
+
+    ; mov esi, thread_switched
+    ; VMMCall Call_When_Thread_Switched
+    ; jc .err
+
+    clc
+    ret
+.err:
+    stc
+    ret
+
+
+wsl9x_thread_event_callback:
+    push ebp
+    mov ebp, esp
+
+    call edx
+
+    leave
     ret
 
 
@@ -90,21 +166,28 @@ wsl9x__schedule_kernel_resume:
     push edi
     push ebx
 
+    mov edi, [wsl9x_thread]
+    mov esi, wsl9x_thread_event_callback
+    mov edx, wsl9x__resume_kernel
+    VMMCall Schedule_Thread_Event
+
+    ; VMMCall _SignalID, WSL9X_BLOCK_ID
+
     ; push .msg1
     ; call printf
     ; add esp, 4
 
-    VMMCall Get_Sys_VM_Handle
+    ; VMMCall Get_Sys_VM_Handle
     ; mov esi, .callback
     ; xor edx, edx
     ; VMMCall Schedule_VM_Event
 
-    mov eax, LOW_PRI_DEVICE_BOOST
-    mov ecx, PEF_ALWAYS_SCHED | PEF_WAIT_FOR_STI | PEF_WAIT_NOT_CRIT | PEF_WAIT_NOT_TIME_CRIT
-    xor edx, edx
-    mov esi, .callback
-    xor edi, edi
-    VMMCall Call_Priority_VM_Event
+    ; mov eax, LOW_PRI_DEVICE_BOOST
+    ; mov ecx, PEF_ALWAYS_SCHED | PEF_WAIT_FOR_STI | PEF_WAIT_NOT_CRIT | PEF_WAIT_NOT_TIME_CRIT
+    ; xor edx, edx
+    ; mov esi, .callback
+    ; xor edi, edi
+    ; VMMCall Call_Priority_VM_Event
 
     ; push .msg2
     ; call printf
@@ -121,12 +204,12 @@ wsl9x__schedule_kernel_resume:
 ; .msg2 db "did schedule kernel resume", 10, 0
 ; .msg3 db "kernel resume callback fired!", 10, 0
 
-.callback:
+; .callback:
     ; push .msg3
     ; call printf
     ; add esp, 4
-    call wsl9x_resume_kernel
-    ret
+    ; call wsl9x_resume_kernel
+    ; ret
 
 
 %macro install_fault 3

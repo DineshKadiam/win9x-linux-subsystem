@@ -64,9 +64,38 @@ def_vmm_cproc VMM_CreateMutex, 2
 def_vmm_cproc VMM_EnterMutex, 2
 def_vmm_cproc VMM_LeaveMutex, 1
 def_vmm_cproc VMM_DestroyMutex, 1
+def_vmm_cproc VMM_AllocateThreadDataSlot, 0
+def_vmm_cproc VMM_SignalID, 1
+def_vmm_cproc VMM_BlockOnID, 1
 
 def_vxd_cproc VTD_Get_Real_Time, 0
 def_vxd_cproc VTD_Get_Date_And_Time, 0
+
+global VMM_Get_Cur_Thread_Handle
+VMM_Get_Cur_Thread_Handle:
+    push ebp
+    mov ebp, esp
+
+    push edi
+    VMMCall Get_Cur_Thread_Handle
+    mov eax, edi
+    pop edi
+
+    leave
+    ret
+
+global VMM_Fatal_Error
+VMM_Fatal_Error:
+    push ebp
+    mov ebp, esp
+
+    pusha
+    mov esi, [arg(0)]
+    mov eax, [arg(1)]
+    VMMCall Fatal_Error_Handler
+
+    xchg bx, bx
+    ud2
 
 global VMM_VMMCreateThread
 VMM_VMMCreateThread:
@@ -78,10 +107,25 @@ global VMM_VMMTerminateThread
 VMM_VMMTerminateThread:
     push ebp
     mov ebp, esp
+
     pusha
     mov edi, [arg(0)]
     VMMCall VMMTerminateThread
     popa
+
+    leave
+    ret
+
+global VMM_Call_When_Thread_Switched
+VMM_Call_When_Thread_Switched:
+    push ebp
+    mov ebp, esp
+
+    push esi
+    mov esi, [arg(0)]
+    VMMCall Call_When_Thread_Switched
+    pop esi
+
     leave
     ret
 

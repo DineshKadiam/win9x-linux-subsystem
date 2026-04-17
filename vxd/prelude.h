@@ -29,3 +29,7 @@ static inline void memcpy32(void* dst, const void* src, size_t bytes)
     size_t dwords = (bytes + 3) / 4;
     __asm__("cld \n rep movsl" : "+S"(src), "+D"(dst), "+c"(dwords) :: "memory");
 }
+
+// #define WSL9X_THREAD_TYPE 'WSL9'
+#define WSL9X_THREAD_TYPE 0x394c5357
+#define WSL9X_BLOCK_ID WSL9X_THREAD_TYPE
