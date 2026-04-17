@@ -34,6 +34,9 @@ Declare_Virtual_Device WSL9X, "WSL9X", 1, 0, WSL9X_DEVICE_ID, UNDEFINED_INIT_ORD
 global wsl9x_thread
 wsl9x_thread dd 0
 
+global wsl9x_context
+wsl9x_context dd 0
+
 section .text
 
 
@@ -92,18 +95,11 @@ thread_switched:
     push ebp
     mov ebp, esp
 
-    ; xchg bx, bx
-    cmp dword [edi + TCB_ThreadType], WSL9X_THREAD_TYPE
+    cmp edi, [wsl9x_thread]
     jne .out
 
-    ; push edi
-    ; push eax
-
-    ; VMMCall Get_Cur_Thread_Handle
-    ; xchg bx, bx
-
-    ; call wsl9x_notify_thread_switched
-    ; add esp, 8
+    ; switching to wsl9x thread
+    VMMCall _ContextSwitch, [wsl9x_context]
 
 .out:
     leave
@@ -124,11 +120,20 @@ thread_init_callback:
 sys_vm_init:
     call install_fault_handlers
     test eax, eax
-    jz .err
+    jz .install_fault_handlers_err
+
+    VMMCall _ContextCreate
+    test eax, eax
+    jz .create_context_err
+    mov [wsl9x_context], eax
+
+    mov esi, thread_switched
+    VMMCall Call_When_Thread_Switched
+    jc .call_when_thread_switched_err
 
     VMMCall VMMCreateThread, ss, 0x4000000, cs, 0x40000000, ds, es, WSL9X_THREAD_TYPE, thread_init_callback, 0
     test eax, eax
-    jz .err
+    jz .create_thread_err
     mov [wsl9x_thread], eax
 
     mov edi, eax
@@ -136,15 +141,17 @@ sys_vm_init:
     mov edx, wsl9x__start_kernel
     VMMCall Schedule_Thread_Event
 
-    ; mov esi, thread_switched
-    ; VMMCall Call_When_Thread_Switched
-    ; jc .err
-
     clc
     ret
-.err:
-    stc
-    ret
+
+.install_fault_handlers_err:
+    Fatal_Error "install_fault_handlers failed"
+.call_when_thread_switched_err:
+    Fatal_Error "Call_When_Thread_Switched failed"
+.create_context_err:
+    Fatal_Error "VMM_CreateContext failed"
+.create_thread_err:
+    Fatal_Error "VMMCreateThread failed"
 
 
 wsl9x_thread_event_callback:
