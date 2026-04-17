@@ -84,6 +84,19 @@ VMM_Get_Cur_Thread_Handle:
     leave
     ret
 
+global VMM_Get_Sys_VM_Handle
+VMM_Get_Sys_VM_Handle:
+    push ebp
+    mov ebp, esp
+
+    push ebx
+    VMMCall Get_Sys_VM_Handle
+    mov eax, ebx
+    pop ebx
+
+    leave
+    ret
+
 global VMM_Fatal_Error
 VMM_Fatal_Error:
     push ebp
@@ -96,6 +109,26 @@ VMM_Fatal_Error:
 
     xchg bx, bx
     ud2
+
+global SHELL_SYSMODAL_Message
+SHELL_SYSMODAL_Message:
+    push ebp
+    mov ebp, esp
+
+    push ebx
+    push edi
+
+    mov ebx, [arg(0)]
+    mov eax, [arg(1)]
+    mov edi, [arg(2)]
+    mov ecx, [arg(3)]
+    VxDCall SHELL_SYSMODAL_Message
+
+    pop edi
+    pop ebx
+
+    leave
+    ret
 
 global VMM_VMMCreateThread
 VMM_VMMCreateThread:

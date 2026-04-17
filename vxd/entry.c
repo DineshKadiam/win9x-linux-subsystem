@@ -1,6 +1,7 @@
 #include "loader.h"
 #include "prelude.h"
 #include "entry.h"
+#include "vxdwraps.h"
 
 #include <wsl9x/mem.h>
 #include <wsl9x/task.h>
@@ -88,28 +89,27 @@ static void enter_kernel(struct wsl9x_entry* entry)
         // schedule another resume soon
         wsl9x__schedule_kernel_resume();
         break;
+    case WSL9X_USER:
+        // we are returning to userspace!
+        break;
     case WSL9X_PANIC:
-        printf("kernel panicked!! blocking VMM thread\n");
-        __asm__ volatile ("xchgw %bx, %bx");
+        printf("!!! kernel panicked: %s\n", entry->panic_msg);
+        SHELL_SYSMODAL_Message(
+            VMM_Get_Sys_VM_Handle(),
+            MB_SYSTEMMODAL | MB_ICONEXCLAMATION | MB_OK,
+            "WSL9X kernel panic",
+            entry->panic_msg
+        );
         VMM_BlockOnID(WSL9X_BLOCK_ID);
+        __asm__ volatile ("xchgw %bx, %bx");
+        // VMM_Fatal_Error(entry->panic_msg, 0);
         break;
     }
 }
 
-// static void enter_kernel_unlocked(struct wsl9x_entry* entry)
-// {
-//     kernel_entry(entry);
-
-//     if (entry->result != 0) {
-//         printf("enter_kernel_unlocked: non-zero result, got: %d\n", entry->result);
-//     }
-// }
-
 void wsl9x__resume_kernel(void)
 {
-    u32 esp;
-    __asm__ volatile("movl %%esp, %0" : "=r"(esp));
-    printf("*** wsl9x__resume_kernel: ESP=%08lx\n", esp);
+    printf("==> wsl9x__resume_kernel\n");
 
     struct wsl9x_entry entry = { 0 };
     entry.reason = WSL9X_RESUME;
@@ -121,15 +121,15 @@ void wsl9x__resume_kernel(void)
 // this is a thread event, when this function returns we will return to userland
 void wsl9x__start_kernel(void)
 {
-    u32 esp;
-    __asm__ volatile("movl %%esp, %0" : "=r"(esp));
-    printf("*** wsl9x__start_kernel: ESP=%08lx\n", esp);
+    printf("==> wsl9x__start_kernel\n");
 
     char* argv[] = {
         "vmlinux",
         "init=/bin/sh",
         "rdinit=/bin/sh",
         "console=bootcon",
+        // prevent user processes from mapping in dos arena:
+        "vm.mmap_min_addr=4194304",
     };
 
     int argc = sizeof(argv) / sizeof(*argv);
@@ -146,13 +146,23 @@ void wsl9x__start_kernel(void)
     enter_kernel(&entry);
 }
 
-// void wsl9x_notify_thread_switched(HTHREAD previous, HTHREAD current)
-// {
-//     struct wsl9x_entry entry = { 0 };
-//     entry.reason = WSL9X_THREAD_SWITCHED;
-//     entry.as.thread_switch.prev = previous;
-//     entry.as.thread_switch.cur = current;
+void wsl9x__user_page_fault(u32 fault_addr)
+{
+    printf("==> wsl9x__user_page_fault: fault_addr=%08lx\n", fault_addr);
 
-//     printf("wsl9x: notifying thread switch %08lx -> %08lx\n", (u32)previous, (u32)current);
-//     enter_kernel_unlocked(&entry);
-// }
+    struct wsl9x_entry entry = { 0 };
+    entry.reason = WSL9X_PAGE_FAULT;
+    entry.as.page_fault.addr = fault_addr;
+
+    enter_kernel(&entry);
+}
+
+void wsl9x__user_syscall(void)
+{
+    printf("==> wsl9x__user_syscall\n");
+
+    struct wsl9x_entry entry = { 0 };
+    entry.reason = WSL9X_SYSCALL;
+
+    enter_kernel(&entry);
+}

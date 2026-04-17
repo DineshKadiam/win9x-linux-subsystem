@@ -25,6 +25,8 @@ extern wsl9x_notify_thread_switched
 extern wsl9x_fault
 extern wsl9x__start_kernel
 extern wsl9x__resume_kernel
+extern wsl9x__user_page_fault
+extern wsl9x__user_syscall
 ; extern thread_task_struct_offset
 
 section .data
@@ -178,27 +180,27 @@ wsl9x__schedule_kernel_resume:
     mov edx, wsl9x__resume_kernel
     VMMCall Schedule_Thread_Event
 
-    ; VMMCall _SignalID, WSL9X_BLOCK_ID
+    pop ebx
+    pop edi
+    pop esi
 
-    ; push .msg1
-    ; call printf
-    ; add esp, 4
+    leave
+    ret
 
-    ; VMMCall Get_Sys_VM_Handle
-    ; mov esi, .callback
-    ; xor edx, edx
-    ; VMMCall Schedule_VM_Event
 
-    ; mov eax, LOW_PRI_DEVICE_BOOST
-    ; mov ecx, PEF_ALWAYS_SCHED | PEF_WAIT_FOR_STI | PEF_WAIT_NOT_CRIT | PEF_WAIT_NOT_TIME_CRIT
-    ; xor edx, edx
-    ; mov esi, .callback
-    ; xor edi, edi
-    ; VMMCall Call_Priority_VM_Event
+global wsl9x__schedule_user_syscall
+wsl9x__schedule_user_syscall:
+    push ebp
+    mov ebp, esp
 
-    ; push .msg2
-    ; call printf
-    ; add esp, 4
+    push esi
+    push edi
+    push ebx
+
+    mov edi, [wsl9x_thread]
+    mov esi, wsl9x_thread_event_callback
+    mov edx, wsl9x__user_syscall
+    VMMCall Schedule_Thread_Event
 
     pop ebx
     pop edi
@@ -207,16 +209,45 @@ wsl9x__schedule_kernel_resume:
     leave
     ret
 
-; .msg1 db "will schedule kernel resume", 10, 0
-; .msg2 db "did schedule kernel resume", 10, 0
-; .msg3 db "kernel resume callback fired!", 10, 0
 
-; .callback:
-    ; push .msg3
-    ; call printf
-    ; add esp, 4
-    ; call wsl9x_resume_kernel
-    ; ret
+global wsl9x__schedule_user_page_fault
+wsl9x__schedule_user_page_fault:
+    push ebp
+    mov ebp, esp
+
+    push esi
+    push edi
+    push ebx
+
+    mov edi, [wsl9x_thread]
+    mov esi, .callback
+    mov edx, [arg(0)]
+    VMMCall Schedule_Thread_Event
+
+    pop ebx
+    pop edi
+    pop esi
+
+    leave
+    ret
+.callback:
+    push ebp
+    mov ebp, esp
+
+    push edx
+    call wsl9x__user_page_fault
+    add esp, 4
+
+    leave
+    ret
+
+; global wsl9x__schedule_user_page_fault
+; wsl9x__schedule_user_trap:
+;     push ebp
+;     mov ebp, esp
+
+;     leave
+;     ret
 
 
 %macro install_fault 3
@@ -260,11 +291,7 @@ install_fault_handlers:
 
     ret
 .err:
-    push .msg
-    call printf
-    add esp, 4
-    ret
-    .msg db "error installing fault handler"
+    Fatal_Error "error installing fault handler"
 
 install_vmm_fault_handler:
     VMMCall Hook_VMM_Fault
