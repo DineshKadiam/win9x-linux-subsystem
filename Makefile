@@ -9,11 +9,11 @@ wsl9x-include = \
 	-I $(LINUX)/include \
 	-I $(LINUX)/arch/um/os-Win95/include
 
-vxd-objs = vxd/wsl9x.o vxd/loader.o vxd/vxdwraps.o vxd/fs.o vxd/fault.o vxd/entry.o
+vxd-objs = vxd/wsl9x.o vxd/loader.o vxd/vxdwraps.o vxd/fs.o vxd/fault.o vxd/entry.o vxd/services.o
 vxd-deps = $(vxd-objs:.o=.d)
 vxd-nasm-flags = -Iddk -Ivxd -felf32 -w-pp-macro-params-legacy
 vxd-cc = i386-linux-musl-gcc
-vxd-c-flags = $(CFLAGS) -ffreestanding -nostdlib -nostdinc -DVXD $(wsl9x-include) -fno-exceptions
+vxd-c-flags = $(CFLAGS) -ffreestanding -nostdlib -nostdinc -fno-exceptions -funsigned-char -DVXD $(wsl9x-include)
 
 .PHONY: all
 all: hdd.img

@@ -1,6 +1,7 @@
 #include "loader.h"
 #include "prelude.h"
 #include "entry.h"
+#include "services.h"
 #include "vxdwraps.h"
 
 #include <wsl9x/mem.h>
@@ -102,7 +103,6 @@ static void enter_kernel(struct wsl9x_entry* entry)
         );
         VMM_BlockOnID(WSL9X_BLOCK_ID);
         __asm__ volatile ("xchgw %bx, %bx");
-        // VMM_Fatal_Error(entry->panic_msg, 0);
         break;
     }
 }
@@ -127,7 +127,7 @@ void wsl9x__start_kernel(void)
         "vmlinux",
         "init=/bin/sh",
         "rdinit=/bin/sh",
-        "console=bootcon",
+        // "console=dostty",
         // prevent user processes from mapping in dos arena:
         "vm.mmap_min_addr=4194304",
     };
@@ -136,8 +136,9 @@ void wsl9x__start_kernel(void)
 
     char* envp[] = { 0 };
 
-    struct wsl9x_entry entry = { 0 };
+    struct wsl9x_entry entry;
     entry.reason = WSL9X_START;
+    entry.as.start.services = &wsl9x_services;
     entry.as.start.argc = argc;
     entry.as.start.argv = argv;
     entry.as.start.envp = envp;
