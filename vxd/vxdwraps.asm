@@ -23,9 +23,10 @@
 %macro def_vmm_cproc 2
 global %1
 %1:
-    cproc_dispatcher_prologue %2
-    VMMCall %tok(%substr(%1, 4))
-    cproc_dispatcher_epilogue %2
+    VMMJmp %tok(%substr(%1, 4))
+    ; cproc_dispatcher_prologue %2
+    ; VMMCall %tok(%substr(%1, 4))
+    ; cproc_dispatcher_epilogue %2
 %endmacro
 
 %macro def_vxd_cproc 2

@@ -621,7 +621,7 @@ R0_WRITEABSOLUTEDISK		equ	0DE00h	; Absolute disk write
 
 %macro VxDJmp 1
   db 0xCD, 0x20
-  dd (@@%1 | 0x80000000)
+  dd (@@%1 | 0x00008000)
 %endmacro
 %define VxDjmp VxDJmp
 
