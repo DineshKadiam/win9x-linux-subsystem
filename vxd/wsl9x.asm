@@ -60,9 +60,15 @@ WSL9X_Control:
 
 
 sys_critical_init:
+    VMMCall _CreateMutex, 0, 1 ; flag=MUTEX_MUST_COMPLETE
+    test eax, eax
+    jz .create_mutex_err
+    mov [printf_mutex], eax
+
     clc
     ret
-
+.create_mutex_err:
+    Fatal_Error "VMM_CreateMutex failed"
 
 device_init:
     call wsl9x_init_entry
@@ -339,27 +345,29 @@ WSL9X_API:
 
 global printf
 printf:
-    ; pop return address into ebx, push prepended buffer arg
-    ; _Sprintf preserves ebx
-    pop ebx
-    VMMCall _Sprintf, buffer
-    push ebx
+    ; take printf mutex
+    VMMCall _EnterMutex, [printf_mutex], 0
+    ; save our return address so that _Sprintf can see the rest of our args
+    ; up the stack. prepend buffer argument
+    pop dword [printf_return]
+    VMMCall _Sprintf, printf_buffer
+    ; restore return address
+    push dword [printf_return]
     ; setup proper stack frame now
     push ebp
     mov ebp, esp
-    ; preserve esi
-    push esi
     ; sprintf returns count in eax
     push eax
-    push buffer
+    push printf_buffer
     call WSL9x_Printk
     add esp, 8
-    ; restore esi and return
-    pop esi
+    ; unlock mutex and return
+    VMMCall _LeaveMutex, [printf_mutex]
     leave
     ret
 
 
-
 section .bss
-buffer resb 256
+printf_mutex resd 1
+printf_return resd 1
+printf_buffer resb 256
