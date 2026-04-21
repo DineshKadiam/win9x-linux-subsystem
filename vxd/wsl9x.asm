@@ -17,18 +17,11 @@
 %define TRAP_PF 0x0e
 
 
-extern WSL9x_Printk
 extern wsl9x_init_entry
 extern wsl9x_reserve_addresses
 extern wsl9x_load_kernel
-extern wsl9x_notify_thread_switched
 extern wsl9x_fault
-extern wsl9x_page_fault
 extern wsl9x_start_kernel
-extern wsl9x__resume_kernel
-extern wsl9x__irq
-extern wsl9x__user_page_fault
-extern wsl9x__user_syscall
 extern wsl9x_v86_api
 extern printf
 extern debug_init
@@ -44,12 +37,6 @@ Declare_Virtual_Device WSL9X, "WSL9X", 1, 0, WSL9X_DEVICE_ID, UNDEFINED_INIT_ORD
 
 global wsl9x_thread
 wsl9x_thread dd 0
-
-global wsl9x_context
-wsl9x_context dd 0
-
-global wsl9x_event
-wsl9x_event dd 0
 
 section .text
 
@@ -94,22 +81,6 @@ device_init:
     ret
 
 
-thread_switched:
-    push ebp
-    mov ebp, esp
-
-    cmp edi, [wsl9x_thread]
-    jne .out
-
-    ; switching to wsl9x thread
-    VMMCall _ContextSwitch, [wsl9x_context]
-    jmp .out
-
-.out:
-    leave
-    ret
-
-
 thread_init_callback:
     push .msg
     call printf
@@ -134,15 +105,6 @@ sys_vm_init:
     call install_fault_handlers
     test eax, eax
     jz .install_fault_handlers_err
-
-    VMMCall _ContextCreate
-    test eax, eax
-    jz .create_context_err
-    mov [wsl9x_context], eax
-
-    mov esi, thread_switched
-    VMMCall Call_When_Thread_Switched
-    jc .call_when_thread_switched_err
 
     clc
     ret
