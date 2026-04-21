@@ -126,8 +126,6 @@ static struct console* find_console(HVM vm)
 
 int wsl9x_v86_start_console(HVM vm, u8* buffer)
 {
-    // wsl9x_start();
-
     for (size_t i = 0; i < MAX_VTERMS; i++) {
         if (consoles[i].owner == NULL) {
             consoles[i].owner = vm;

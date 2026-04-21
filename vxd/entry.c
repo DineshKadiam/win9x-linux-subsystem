@@ -120,22 +120,6 @@ static void enter_kernel(struct wsl9x_entry* entry)
 
     assert_kernel_thread();
 
-    // struct Thread_Win32_Pri pri;
-
-    // VMM_Get_Thread_Win32_Pri(VMM_Get_Cur_Thread_Handle(), &pri);
-    // printf("== linux thread\n");
-    // printf("       base_priority:%lu\n", pri.base_priority);
-    // printf("    current_priority:%lu\n", pri.current_priority);
-    // printf("    time_decay_boost:%lu\n", pri.time_decay_boost);
-    // printf("  inversion_priority:%lu\n", pri.inversion_priority);
-
-    // VMM_Get_Thread_Win32_Pri(VMM_Get_Sys_Thread_Handle(), &pri);
-    // printf("== system thread\n");
-    // printf("       base_priority:%lu\n", pri.base_priority);
-    // printf("    current_priority:%lu\n", pri.current_priority);
-    // printf("    time_decay_boost:%lu\n", pri.time_decay_boost);
-    // printf("  inversion_priority:%lu\n", pri.inversion_priority);
-
     VMM_EnterMutex(entry_mutex, MUTEX_MUST_COMPLETE);
     VMM_Call_On_My_Stack(entry_stack_top, (u32)entry, entry_stack, STACK_SIZE);
     VMM_LeaveMutex(entry_mutex);
@@ -151,23 +135,12 @@ static void enter_kernel(struct wsl9x_entry* entry)
         printf("kernel is now idle. blocking VMM thread\n");
         printf("  system thread: 0x%08lx\n", (ulong)VMM_Get_Sys_Thread_Handle());
         printf(" current thread: 0x%08lx\n", (ulong)VMM_Get_Cur_Thread_Handle());
-        // assert_kernel_thread();
 
-        // if (!VMM_Set_Thread_Win32_Pri(wsl9x_thread, 1)) {
-        //     printf("failed to set wsl9x thread priority\n");
-        // }
-
-        // VMM_Time_Slice_Sleep(1000);
-        // VMM_Suspend_VM(wsl9x_vm);
-
-        // wsl9x__schedule_kernel_resume();
         VMM_Wait_Semaphore(wsl9x_thread_semaphore,
             BLOCK_THREAD_IDLE | BLOCK_SVC_INTS | BLOCK_ENABLE_INTS);
 
         wsl9x_schedule();
 
-        // VMM_Get_Cur_Thread_Handle()->Flags |= THFLAG_SUSPENDED | THFLAG_NOT_EXECUTEABLE;
-        // VMM_BlockOnID(WSL9X_BLOCK_ID);
         break;
     case WSL9X_YIELD:
         printf("kernel yield\n");
@@ -188,8 +161,6 @@ static void enter_kernel(struct wsl9x_entry* entry)
             "WSL9X kernel panic",
             entry->panic_msg
         );
-        // VMM_BlockOnID(WSL9X_BLOCK_ID);
-        // __asm__ volatile ("xchgw %bx, %bx");
         break;
     }
 }
@@ -211,7 +182,6 @@ void wsl9x__start_kernel(void)
         "vmlinux",
         "init=/bin/sh",
         "rdinit=/bin/sh",
-        // "console=dostty",
         // prevent user processes from mapping in dos arena:
         "vm.mmap_min_addr=16777216", // 0x01000000
     };

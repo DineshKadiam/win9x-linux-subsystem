@@ -27,15 +27,3 @@ section .data
     %%msg_end db 0
 section .text
 %endmacro
-
-; %macro CCall 1-*
-;   %rep %0 - 1
-;     %rotate -1
-;     push %1
-;   %endrep
-;   %rotate -1
-;   call %1
-;   %if %0 > 1
-;     lea esp, [esp + 4*(%0 - 1)]
-;   %endif
-; %endmacro

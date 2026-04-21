@@ -30,7 +30,6 @@ extern wsl9x__irq
 extern wsl9x__user_page_fault
 extern wsl9x__user_syscall
 extern wsl9x_v86_api
-; extern thread_task_struct_offset
 
 section .data
 
@@ -60,9 +59,6 @@ WSL9X_Control:
 
     cmp eax, SYS_VM_INIT
     je sys_vm_init
-
-    ; cmp eax, CREATE_THREAD
-    ; je create_thread
 
     cmp eax, KERNEL32_INITIALIZED
     je kernel32_init
@@ -106,15 +102,6 @@ device_init:
     ret
 
 
-; create_thread:
-;     ; zero initialize thread data slot:
-;     xor eax, eax
-;     mov ebx, [thread_task_struct_offset]
-;     mov [edi + ebx], eax
-;     clc
-;     ret
-
-
 thread_switched:
     push ebp
     mov ebp, esp
@@ -125,21 +112,6 @@ thread_switched:
     ; switching to wsl9x thread
     VMMCall _ContextSwitch, [wsl9x_context]
     jmp .out
-
-.out:
-    leave
-    ret
-
-
-task_switched:
-    push ebp
-    mov ebp, esp
-
-    ; cmp ebx, [wsl9x_vm]
-    ; jne .out
-
-    ; switching to wsl9x vm
-    ; VMMCall _ContextSwitch, [wsl9x_context]
 
 .out:
     leave
@@ -172,11 +144,6 @@ sys_vm_init:
     jc .create_semaphore_err
     mov [wsl9x_thread_semaphore], eax
 
-    ; call do_create_vm
-    ; xchg bx, bx
-    ; call do_create_vm
-    ; xchg bx, bx
-
     call install_fault_handlers
     test eax, eax
     jz .install_fault_handlers_err
@@ -189,10 +156,6 @@ sys_vm_init:
     mov esi, thread_switched
     VMMCall Call_When_Thread_Switched
     jc .call_when_thread_switched_err
-
-    mov esi, task_switched
-    VMMCall Call_When_Task_Switched
-    jc .call_when_task_switched_err
 
     clc
     ret
@@ -222,8 +185,6 @@ kernel32_init:
     mov edi, eax
     mov esi, wsl9x__start_kernel
     xor edx, edx
-    ; mov esi, wsl9x_thread_event_callback
-    ; mov edx, wsl9x__start_kernel
     VMMCall Schedule_Thread_Event
 
 .out:
@@ -231,184 +192,6 @@ kernel32_init:
     ret
 .create_thread_err:
     Fatal_Error "VMMCreateThread failed"
-
-
-; wsl9x_thread_event_callback:
-;     mov dword [wsl9x_event], 0
-
-;     push ebp
-;     mov ebp, esp
-
-;     ; clear event handle
-;     xor eax, eax
-;     mov [current_event_handle], eax
-
-;     ; Debug_Log "dispatching thread event"
-
-;     ; dispatch to handler
-;     call edx
-
-;     ; Debug_Log "dispatched thread event"
-
-;     leave
-;     ret
-
-; section .bss
-; current_event_handle resd 1
-
-; section .text
-; global wsl9x__schedule_event
-; wsl9x__schedule_event:
-;     push ebp
-;     mov ebp, esp
-
-;     push esi
-;     push edi
-;     push ebx
-
-;     ; mov esi, [current_event_handle]
-;     ; test esi, esi
-;     ; jnz .err
-
-;     ; mov ebx, [wsl9x_vm]
-;     ; mov esi, wsl9x_thread_event_callback
-;     ; mov edx, [arg(0)]
-;     ; VMMCall Schedule_VM_Event
-
-;     mov edi, [wsl9x_thread]
-;     mov esi, wsl9x_thread_event_callback
-;     mov edx, [arg(0)]
-;     VMMCall Schedule_Thread_Event
-
-;     ; mov eax, 0
-;     ; mov ebx, [wsl9x_thread]
-;     ; mov ecx, PEF_ALWAYS_SCHED | PEF_THREAD_EVENT | PEF_WAIT_NOT_HW_INT | PEF_WAIT_NOT_CRIT
-;     ; mov edx, [arg(0)]
-;     ; mov esi, wsl9x_thread_event_callback
-;     ; xor edi, edi
-;     ; VMMCall Call_Restricted_Event
-;     ; mov [current_event_handle], esi
-
-;     pop ebx
-;     pop edi
-;     pop esi
-
-;     leave
-;     ret
-; .err:
-;     Debug_Log "called wsl9x__schedule_event while another event is pending"
-;     Fatal_Error "called wsl9x__schedule_event while another event is pending"
-
-
-; global wsl9x__schedule_kernel_resume
-; wsl9x__schedule_kernel_resume:
-;     push ebp
-;     mov ebp, esp
-
-;     ; Debug_Log "schedule_kernel_resume"
-
-;     push wsl9x__resume_kernel
-;     call wsl9x__schedule_event
-;     add esp, 4
-
-;     leave
-;     ret
-
-
-; global wsl9x__schedule_user_syscall
-; wsl9x__schedule_user_syscall:
-;     push ebp
-;     mov ebp, esp
-
-;     ; Debug_Log "schedule_user_syscall"
-
-;     push wsl9x__user_syscall
-;     call wsl9x__schedule_event
-;     add esp, 4
-
-;     leave
-;     ret
-
-
-; global wsl9x__schedule_user_page_fault
-; wsl9x__schedule_user_page_fault:
-;     push ebp
-;     mov ebp, esp
-
-;     push esi
-;     push edi
-;     push ebx
-
-;     mov edi, [wsl9x_thread]
-;     mov esi, .callback
-;     mov edx, [arg(0)]
-;     VMMCall Schedule_Thread_Event
-
-;     ; mov ebx, [wsl9x_vm]
-;     ; mov esi, .callback
-;     ; mov edx, [arg(0)]
-;     ; VMMCall Schedule_VM_Event
-
-;     pop ebx
-;     pop edi
-;     pop esi
-
-;     leave
-;     ret
-; .callback:
-;     push ebp
-;     mov ebp, esp
-
-;     ; Debug_Log "dispatching page fault"
-
-;     push edx
-;     call wsl9x__user_page_fault
-;     add esp, 4
-
-;     ; Debug_Log "dispatched page fault"
-
-;     leave
-;     ret
-
-
-; global wsl9x_schedule_irq
-; wsl9x_schedule_irq:
-;     push ebp
-;     mov ebp, esp
-
-;     push esi
-;     push edi
-;     push ebx
-
-;     mov edi, [wsl9x_thread]
-;     mov esi, .callback
-;     mov edx, [arg(0)]
-;     VMMCall Schedule_Thread_Event
-
-;     mov eax, [wsl9x_thread_semaphore]
-;     VMMCall Signal_Semaphore
-
-;     ; mov ebx, [wsl9x_vm]
-;     ; mov esi, .callback
-;     ; mov edx, [arg(0)]
-;     ; VMMCall Schedule_VM_Event
-
-;     pop ebx
-;     pop edi
-;     pop esi
-
-;     leave
-;     ret
-; .callback:
-;     push ebp
-;     mov ebp, esp
-
-;     push edx
-;     call wsl9x__irq
-;     add esp, 4
-
-;     leave
-;     ret
 
 
 %macro install_fault 3
@@ -450,10 +233,6 @@ install_fault_handlers:
     install_fault PM, TRAP_PF, pm_pf
     install_fault PM, TRAP_UD, pm_ud
 
-    ; mov esi, page_fault
-    ; VMMCall Hook_Invalid_Page_Fault
-    ; jc .err
-
     ret
 .err:
     Fatal_Error "error installing fault handler"
@@ -494,24 +273,6 @@ trap_pm_pf:
 
 trap_pm_ud:
     dispatch_fault TRAP_UD | FAULT_PM, pm_ud
-
-; page_fault:
-;     push ebp
-;     mov ebp, esp
-
-;     push edi
-;     push ebx
-;     call wsl9x_page_fault
-;     add esp, 4
-
-;     clc
-;     test eax, eax
-;     jnz .ok
-;     stc
-; .ok:
-;     leave
-;     ret
-
 
 ;; Debug logging
 
