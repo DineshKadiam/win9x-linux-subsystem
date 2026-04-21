@@ -14,3 +14,28 @@ section .data
     %%msg db %1, 0
 section .text
 %endmacro
+
+%macro Debug_Log 1
+section .text
+    push dword (%%msg_end - %%msg)
+    push dword (%%msg)
+    extern bochs_safe_debug_print
+    call bochs_safe_debug_print
+    add esp, 8
+section .data
+    %%msg db %1, 10
+    %%msg_end db 0
+section .text
+%endmacro
+
+; %macro CCall 1-*
+;   %rep %0 - 1
+;     %rotate -1
+;     push %1
+;   %endrep
+;   %rotate -1
+;   call %1
+;   %if %0 > 1
+;     lea esp, [esp + 4*(%0 - 1)]
+;   %endif
+; %endmacro

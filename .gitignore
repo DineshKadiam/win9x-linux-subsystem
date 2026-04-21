@@ -3,5 +3,6 @@
 *.map
 *.o
 *.vxd
+*.com
 /compile_commands.json
 /vmlinux*

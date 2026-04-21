@@ -1,6 +1,7 @@
 #pragma once
 #include "prelude.h"
 #include <wsl9x/task.h>
+#include <wsl9x/mem.h>
 
 typedef enum {
     FAULT_CONTINUE = 0,
@@ -18,4 +19,5 @@ typedef enum {
 #define FAULT_PM   (0x02 << 8)
 #define FAULT(type) ((type) & FAULT_MASK)
 
-fault_result_t wsl9x_vmm_fault(u16 type, VMM_VMCB* vm, void* context);
+fault_result_t wsl9x_page_fault(HVM vm, const VMM_IPF_Data* data);
+fault_result_t wsl9x_vmm_fault(u16 type, HVM vm, void* context);

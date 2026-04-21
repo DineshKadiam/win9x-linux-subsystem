@@ -85,6 +85,19 @@ VMM_Get_Cur_Thread_Handle:
     leave
     ret
 
+global VMM_Get_Sys_Thread_Handle
+VMM_Get_Sys_Thread_Handle:
+    push ebp
+    mov ebp, esp
+
+    push edi
+    VMMCall Get_Sys_Thread_Handle
+    mov eax, edi
+    pop edi
+
+    leave
+    ret
+
 global VMM_Get_Sys_VM_Handle
 VMM_Get_Sys_VM_Handle:
     push ebp
@@ -94,6 +107,74 @@ VMM_Get_Sys_VM_Handle:
     VMMCall Get_Sys_VM_Handle
     mov eax, ebx
     pop ebx
+
+    leave
+    ret
+
+global VMM_Get_Cur_VM_Handle
+VMM_Get_Cur_VM_Handle:
+    push ebp
+    mov ebp, esp
+
+    push ebx
+    VMMCall Get_Cur_VM_Handle
+    mov eax, ebx
+    pop ebx
+
+    leave
+    ret
+
+global VMM_Signal_Semaphore
+VMM_Signal_Semaphore:
+    push ebp
+    mov ebp, esp
+
+    mov eax, [arg(0)]
+    VMMCall Signal_Semaphore
+
+    leave
+    ret
+
+global VMM_Signal_Semaphore_No_Switch
+VMM_Signal_Semaphore_No_Switch:
+    push ebp
+    mov ebp, esp
+
+    mov eax, [arg(0)]
+    VMMCall Signal_Semaphore_No_Switch
+
+    leave
+    ret
+
+global VMM_Wait_Semaphore
+VMM_Wait_Semaphore:
+    push ebp
+    mov ebp, esp
+
+    mov eax, [arg(0)]
+    mov ecx, [arg(1)]
+    VMMCall Wait_Semaphore
+
+    leave
+    ret
+
+global VMM_Release_Time_Slice
+VMM_Release_Time_Slice:
+    push ebp
+    mov ebp, esp
+
+    VMMCall Release_Time_Slice
+
+    leave
+    ret
+
+global VMM_Time_Slice_Sleep
+VMM_Time_Slice_Sleep:
+    push ebp
+    mov ebp, esp
+
+    mov eax, [arg(0)]
+    VMMCall Time_Slice_Sleep
 
     leave
     ret
@@ -110,6 +191,32 @@ VMM_Fatal_Error:
 
     xchg bx, bx
     ud2
+
+global VMM_Suspend_VM
+VMM_Suspend_VM:
+    push ebp
+    mov ebp, esp
+
+    push ebx
+    mov ebx, [arg(0)]
+    VMMCall Suspend_VM
+    pop ebx
+
+    leave
+    ret
+
+global VMM_Resume_VM
+VMM_Resume_VM:
+    push ebp
+    mov ebp, esp
+
+    push ebx
+    mov ebx, [arg(0)]
+    VMMCall Suspend_VM
+    pop ebx
+
+    leave
+    ret
 
 global SHELL_SYSMODAL_Message
 SHELL_SYSMODAL_Message:
@@ -192,23 +299,6 @@ VMM_Cancel_Time_Out:
     leave
     ret
 
-global VMM_Begin_Critical_Section
-VMM_Begin_Critical_Section:
-    push ebp
-    mov ebp, esp
-    mov ecx, [arg(0)]
-    VMMCall Begin_Critical_Section
-    leave
-    ret
-
-global VMM_End_Critical_Section
-VMM_End_Critical_Section:
-    push ebp
-    mov ebp, esp
-    VMMCall End_Critical_Section
-    leave
-    ret
-
 global WSL9x_Printk
 WSL9x_Printk:
     push ebp
@@ -260,6 +350,29 @@ WSL9x_Log_Warn:
 
     pop esi
 
+    leave
+    ret
+
+global bochs_safe_debug_print
+bochs_safe_debug_print:
+    push ebp
+    mov ebp, esp
+    pushf
+    cli
+
+    push esi
+    push ecx
+    push edx
+
+    mov esi, [arg(0)]
+    mov ecx, [arg(1)]
+    call bochs_debug_print
+
+    pop edx
+    pop ecx
+    pop esi
+
+    popf
     leave
     ret
 
