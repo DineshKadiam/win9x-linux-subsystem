@@ -24,6 +24,7 @@ enum Semaphore_Wait_Flags {
 };
 
 typedef struct Semaphore* HSEMAPHORE;
+HSEMAPHORE VMM_Create_Semaphore(u32 tokens);
 void VMM_Signal_Semaphore(HSEMAPHORE);
 void VMM_Signal_Semaphore_No_Switch(HSEMAPHORE);
 void VMM_Wait_Semaphore(HSEMAPHORE, enum Semaphore_Wait_Flags);

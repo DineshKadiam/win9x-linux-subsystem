@@ -18,9 +18,8 @@ bool VMM_Set_Thread_Win32_Pri(HTHREAD thread, u32 priority)
 {
     int carry;
     __asm__ volatile(VMM_CALL(0x0167)
-        :   "=@ccc"(carry)
-        :   "D"(thread),
-            "a"(priority));
+        : "=@ccc"(carry)
+        : "D"(thread), "a"(priority));
     return !carry;
 }
 
@@ -28,9 +27,16 @@ HEVENT VMM_Schedule_Thread_Event(HTHREAD thread, void* callback, void* data)
 {
     HEVENT out;
     __asm__ volatile(VMM_CALL(0x00fb)
-        :   "=S"(out)
-        :   "D"(thread),
-            "S"(callback),
-            "d"(data));
+        : "=S"(out)
+        : "D"(thread), "S"(callback), "d"(data));
+    return out;
+}
+
+HSEMAPHORE VMM_Create_Semaphore(u32 tokens)
+{
+    HSEMAPHORE out;
+    __asm__ volatile(VMM_CALL(0x0025)
+        : "=a"(out)
+        : "c"(tokens));
     return out;
 }

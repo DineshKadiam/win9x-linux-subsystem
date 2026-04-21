@@ -47,8 +47,8 @@ wsl9x_v86_schedule_console_output:
 
     push ebx
     push esi
+    push edi
 
-    Debug_Log "will schedule console output event"
     mov eax, HIGH_PRI_DEVICE_BOOST
     mov ebx, [arg(0)]
     mov ecx, PEF_ALWAYS_SCHED | PEF_WAIT_FOR_STI | PEF_WAIT_NOT_HW_INT
@@ -57,6 +57,7 @@ wsl9x_v86_schedule_console_output:
     xor edi, edi
     VMMCall Call_Priority_VM_Event
 
+    pop edi
     pop esi
     pop ebx
 

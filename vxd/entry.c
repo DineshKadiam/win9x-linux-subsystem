@@ -19,17 +19,13 @@ static void* entry_stack;
 extern HTHREAD wsl9x_thread;
 extern HCONTEXT wsl9x_context;
 // extern HVM wsl9x_vm;
-extern HSEMAPHORE wsl9x_thread_semaphore;
+
+static HSEMAPHORE wsl9x_semaphore;
 
 static int started = 0;
 static int panicked = 0;
 
-static HEVENT event = 0;
-
-static u32 irqs_pending = 0;
-static HMUTEX irqs_mutex = 0;
-
-void wsl9x_schedule(void);
+static u32 pending_irqs = 0;
 
 static void* allocate_stack(void)
 {
@@ -49,136 +45,9 @@ static void* allocate_stack(void)
     return (void*)addr;
 }
 
-bool wsl9x_init_entry(void)
+static void make_start_params(struct wsl9x_entry* entry)
 {
-    entry_mutex = VMM_CreateMutex(0, MUTEX_MUST_COMPLETE);
-    if (!entry_mutex) {
-        printf("wsl9x_init_entry: VMM_CreateMutex failed\n");
-        return false;
-    }
-
-    irqs_mutex = VMM_CreateMutex(0, MUTEX_MUST_COMPLETE);
-    if (!irqs_mutex) {
-        printf("wsl9x_init_entry: VMM_CreateMutex failed\n");
-        return false;
-    }
-
-    entry_stack = allocate_stack();
-    if (!entry_stack) {
-        printf("wsl9x_init_entry: failed to allocate stack\n");
-        return false;
-    }
-
-    return true;
-}
-
-// void wsl9x_start(void)
-// {
-//     if (wsl9x_vm) {
-//         return;
-//     }
-
-//     // wsl9x_vm = VMM_Get_Cur_VM_Handle();
-//     // __asm__ volatile("xchg %bx, %bx");
-//     // VMM_ContextSwitch(wsl9x_context);
-//     wsl9x__start_kernel();
-// }
-
-static void entry_stack_top(u32 param)
-{
-    struct wsl9x_entry* entry = (void*)param;
-    return kernel_entry(entry);
-}
-
-// void wsl9x__schedule_kernel_resume(void);
-
-// static void assert_kernel_vm(void)
-// {
-//     if (VMM_Get_Cur_VM_Handle() != wsl9x_vm) {
-//         __asm__ volatile ("xchgw %bx, %bx");
-//         VMM_Fatal_Error("enter_kernel on wrong thread", 0);
-//     }
-// }
-
-static void assert_kernel_thread(void)
-{
-    if (VMM_Get_Cur_Thread_Handle() != wsl9x_thread) {
-        // __asm__ volatile ("xchgw %bx, %bx");
-        VMM_Fatal_Error("enter_kernel on wrong thread", 0);
-    }
-}
-
-static void enter_kernel(struct wsl9x_entry* entry)
-{
-    if (panicked) {
-        return;
-    }
-
-    u32 esp = 0;
-    __asm__ volatile("mov %%esp, %0" : "=r"(esp));
-    printf("enter_kernel esp=%08lx\n", esp);
-
-    assert_kernel_thread();
-
-    VMM_EnterMutex(entry_mutex, MUTEX_MUST_COMPLETE);
-    VMM_Call_On_My_Stack(entry_stack_top, (u32)entry, entry_stack, STACK_SIZE);
-    VMM_LeaveMutex(entry_mutex);
-
-    wsl9x_console_check_sched();
-
-    switch (entry->result) {
-    case WSL9X_IDLE:
-        printf("kernel idle\n");
-        // VMM_Suspend_VM(wsl9x_vm);
-
-        // nothing to do. wait until there's an event!
-        printf("kernel is now idle. blocking VMM thread\n");
-        printf("  system thread: 0x%08lx\n", (ulong)VMM_Get_Sys_Thread_Handle());
-        printf(" current thread: 0x%08lx\n", (ulong)VMM_Get_Cur_Thread_Handle());
-
-        VMM_Wait_Semaphore(wsl9x_thread_semaphore,
-            BLOCK_THREAD_IDLE | BLOCK_SVC_INTS | BLOCK_ENABLE_INTS);
-
-        wsl9x_schedule();
-
-        break;
-    case WSL9X_YIELD:
-        printf("kernel yield\n");
-        // schedule another resume soon
-        wsl9x_schedule();
-        break;
-    case WSL9X_USER:
-        printf("kernel user\n");
-        // we are returning to userspace!
-        break;
-    case WSL9X_PANIC:
-        panicked = 1;
-        printf("!!! kernel panicked: %s\n", entry->panic_msg);
-        __asm__ volatile ("xchgw %bx, %bx");
-        SHELL_SYSMODAL_Message(
-            VMM_Get_Cur_VM_Handle(),
-            MB_SYSTEMMODAL | MB_ICONEXCLAMATION | MB_OK,
-            "WSL9X kernel panic",
-            entry->panic_msg
-        );
-        break;
-    }
-}
-
-void wsl9x__resume_kernel(void)
-{
-    struct wsl9x_entry entry = { 0 };
-    entry.reason = WSL9X_RESUME;
-
-    enter_kernel(&entry);
-}
-
-// this is a thread event, when this function returns we will return to userland
-void wsl9x__start_kernel(void)
-{
-    started = 1;
-
-    char* argv[] = {
+    static char* argv[] = {
         "vmlinux",
         "init=/bin/sh",
         "rdinit=/bin/sh",
@@ -186,87 +55,192 @@ void wsl9x__start_kernel(void)
         "vm.mmap_min_addr=16777216", // 0x01000000
     };
 
+    static char* envp[] = { 0 };
+
     int argc = sizeof(argv) / sizeof(*argv);
 
-    char* envp[] = { 0 };
-
-    struct wsl9x_entry entry;
-    entry.reason = WSL9X_START;
-    entry.as.start.services = &wsl9x_services;
-    entry.as.start.argc = argc;
-    entry.as.start.argv = argv;
-    entry.as.start.envp = envp;
-
-    enter_kernel(&entry);
+    entry->reason = WSL9X_START;
+    entry->as.start.services = &wsl9x_services;
+    entry->as.start.argc = argc;
+    entry->as.start.argv = argv;
+    entry->as.start.envp = envp;
 }
 
-void wsl9x__irq(enum wsl9x_irq irq)
+static void idle(void)
 {
-    struct wsl9x_entry entry = { 0 };
-    entry.reason = WSL9X_IRQ;
-    entry.as.irq = irq;
-    printf("  entering with irq=%d\n", irq);
+    VMM_Wait_Semaphore(wsl9x_semaphore,
+        BLOCK_THREAD_IDLE | BLOCK_SVC_INTS | BLOCK_ENABLE_INTS);
+}
 
-    enter_kernel(&entry);
+static __noreturn void fatal_error(const char* caption, const char* message)
+{
+    __asm__ volatile ("xchgw %bx, %bx");
+
+    SHELL_SYSMODAL_Message(
+        VMM_Get_Cur_VM_Handle(),
+        MB_SYSTEMMODAL | MB_ICONEXCLAMATION | MB_OK,
+        caption,
+        message
+    );
+
+    while (1) {
+        idle();
+    }
+}
+
+static __noreturn void bug(const char* message)
+{
+    printf("!!! WSL9X BUG: %s\n", message);
+    fatal_error("WSL9X BUG", message);
+}
+
+static __noreturn void handle_panic(const char* message)
+{
+    panicked = 1;
+    printf("!!! kernel panicked: %s\n", message);
+    fatal_error("WSL9X kernel panic", message);
+}
+
+static void assert_kernel_thread(void)
+{
+    if (VMM_Get_Cur_Thread_Handle() != wsl9x_thread) {
+        bug("not on kernel thread");
+    }
+}
+
+static u32 irq_bit(enum wsl9x_irq irq)
+{
+    return 1 << irq;
+}
+
+static enum wsl9x_irq pop_irq(void)
+{
+    for (enum wsl9x_irq irq = 0; irq < WSL9X_NR_IRQS; irq++) {
+        u32 bit = irq_bit(irq);
+        if (pending_irqs & bit) {
+            pending_irqs &= ~bit;
+            return irq;
+        }
+    }
+
+    return 0;
+}
+
+static void entry_stack_top(u32 param)
+{
+    struct wsl9x_entry* entry = (void*)param;
+    kernel_entry(entry);
+}
+
+static bool kernel_one_loop(struct wsl9x_entry* entry)
+{
+    assert_kernel_thread();
+
+    // dispatch to kernel
+    VMM_EnterMutex(entry_mutex, MUTEX_MUST_COMPLETE);
+    VMM_Call_On_My_Stack(entry_stack_top, (u32)entry, entry_stack + STACK_SIZE, STACK_SIZE);
+    VMM_LeaveMutex(entry_mutex);
+
+    // schedule any necessary work outside of kernel
+    wsl9x_console_check_sched();
+
+    // handle kernel result
+    switch (entry->result) {
+    case WSL9X_IDLE:
+        // printf("kernel idle\n");
+        idle();
+        break;
+    case WSL9X_YIELD:
+        // kernel yielding, just go around again for now.
+        // no time slice release until i can prove it's actually doing anything
+        break;
+    case WSL9X_USER:
+        // printf("return to user\n");
+        return false;
+    case WSL9X_PANIC:
+        handle_panic(entry->panic_msg);
+    }
+
+    // setup entry to go around again
+    enum wsl9x_irq irq = pop_irq();
+    if (irq) {
+        printf("dispatching IRQ %d\n", irq);
+        entry->reason = WSL9X_IRQ;
+        entry->as.irq = irq;
+    } else {
+        entry->reason = WSL9X_RESUME;
+    }
+
+    return true;
+}
+
+static void kernel_loop(struct wsl9x_entry* entry)
+{
+    static int in_loop;
+
+    if (in_loop) {
+        bug("recursive kernel_loop is an error!");
+    }
+
+    in_loop = 1;
+    while (kernel_one_loop(entry)) ;
+    in_loop = 0;
+}
+
+static void start_kernel(void)
+{
+    assert_kernel_thread();
+
+    struct wsl9x_entry entry;
+    make_start_params(&entry);
+
+    kernel_loop(&entry);
+}
+
+void wsl9x_irq(enum wsl9x_irq irq)
+{
+    pending_irqs |= irq_bit(irq);
+    VMM_Signal_Semaphore(wsl9x_semaphore);
 }
 
 void wsl9x__user_page_fault(u32 fault_addr)
 {
-    printf("kernel page fault\n");
+    printf("kernel page fault: %08lx\n", fault_addr);
     struct wsl9x_entry entry = { 0 };
     entry.reason = WSL9X_PAGE_FAULT;
     entry.as.page_fault.addr = fault_addr;
 
-    enter_kernel(&entry);
+    kernel_loop(&entry);
 }
 
 void wsl9x__user_syscall(void)
 {
-    printf("syscall\n");
     struct wsl9x_entry entry = { 0 };
     entry.reason = WSL9X_SYSCALL;
 
-    enter_kernel(&entry);
+    kernel_loop(&entry);
 }
 
-static void process_irqs(void)
+void wsl9x_start_kernel(void)
 {
-    VMM_EnterMutex(irqs_mutex, MUTEX_MUST_COMPLETE);
-    u32 irqs = irqs_pending;
-    irqs_pending = 0;
-    VMM_LeaveMutex(irqs_mutex);
-
-    // do pending irqs
-    for (u32 i = 0; irqs; i++, irqs >>= 1) {
-        if (irqs & 1) {
-            wsl9x__irq(i);
-        }
+    if (started) {
+        bug("wsl9x_start_kernel: kernel already started");
     }
-}
 
-static void process_kernel_events(void)
-{
-    process_irqs();
-    wsl9x__resume_kernel();
-}
-
-static void kernel_thread_event(void)
-{
-    event = 0;
-    process_kernel_events();
-}
-
-void wsl9x_schedule(void)
-{
-    if (!event) {
-        event = VMM_Schedule_Thread_Event(wsl9x_thread, kernel_thread_event, 0);
+    entry_mutex = VMM_CreateMutex(0, MUTEX_MUST_COMPLETE);
+    if (!entry_mutex) {
+        bug("wsl9x_start_kernel: VMM_CreateMutex failed");
     }
-}
 
-void wsl9x_schedule_irq(enum wsl9x_irq irq)
-{
-    VMM_EnterMutex(irqs_mutex, MUTEX_MUST_COMPLETE);
-    irqs_pending |= 1 << irq;
-    VMM_LeaveMutex(irqs_mutex);
-    VMM_Signal_Semaphore(wsl9x_thread_semaphore);
+    wsl9x_semaphore = VMM_Create_Semaphore(0);
+    if (!wsl9x_semaphore) {
+        bug("wsl9x_start_kernel: VMM_Create_Semaphore failed");
+    }
+
+    entry_stack = allocate_stack();
+    if (!entry_stack) {
+        bug("wsl9x_start_kernel: allocate_stack failed");
+    }
+
+    VMM_Schedule_Thread_Event(wsl9x_thread, start_kernel, 0);
 }

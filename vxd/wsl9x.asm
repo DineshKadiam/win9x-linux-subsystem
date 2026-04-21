@@ -24,7 +24,7 @@ extern wsl9x_load_kernel
 extern wsl9x_notify_thread_switched
 extern wsl9x_fault
 extern wsl9x_page_fault
-extern wsl9x__start_kernel
+extern wsl9x_start_kernel
 extern wsl9x__resume_kernel
 extern wsl9x__irq
 extern wsl9x__user_page_fault
@@ -37,9 +37,6 @@ Declare_Virtual_Device WSL9X, "WSL9X", 1, 0, WSL9X_DEVICE_ID, UNDEFINED_INIT_ORD
 
 global wsl9x_thread
 wsl9x_thread dd 0
-
-global wsl9x_thread_semaphore
-wsl9x_thread_semaphore dd 0
 
 global wsl9x_context
 wsl9x_context dd 0
@@ -82,10 +79,6 @@ sys_critical_init:
 
 device_init:
     Debug_Log "wsl9x: device_init"
-
-    call wsl9x_init_entry
-    test eax, eax
-    jz .err
 
     call wsl9x_reserve_addresses
     test eax, eax
@@ -139,11 +132,6 @@ do_create_vm:
 sys_vm_init:
     Debug_Log "wsl9x: sys_vm_init"
 
-    xor ecx, ecx
-    VMMCall Create_Semaphore
-    jc .create_semaphore_err
-    mov [wsl9x_thread_semaphore], eax
-
     call install_fault_handlers
     test eax, eax
     jz .install_fault_handlers_err
@@ -159,8 +147,6 @@ sys_vm_init:
 
     clc
     ret
-.create_semaphore_err:
-    Fatal_Error "Create_Semaphore failed"
 .install_fault_handlers_err:
     Fatal_Error "install_fault_handlers failed"
 .call_when_thread_switched_err:
@@ -182,10 +168,7 @@ kernel32_init:
     mov edi, eax
     VMMCall Detach_Thread_From_Group
 
-    mov edi, eax
-    mov esi, wsl9x__start_kernel
-    xor edx, edx
-    VMMCall Schedule_Thread_Event
+    call wsl9x_start_kernel
 
 .out:
     clc
