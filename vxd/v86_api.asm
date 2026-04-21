@@ -81,10 +81,8 @@ wsl9x_v86__write_output:
 
     VMMCall Get_Cur_VM_Handle
 
-    mov ax, 0x0200
-    movzx eax, ax
-    movzx edx, byte [arg(0)]
-    push dword 0x21
+    mov al, byte [arg(0)]
+    push dword 0x29 ; fast putchar, nnansi hooks this
     VMMCall Exec_VxD_Int
 
     pop ebx
