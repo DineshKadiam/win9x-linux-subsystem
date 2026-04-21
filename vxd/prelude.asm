@@ -19,8 +19,8 @@ section .text
 section .text
     push dword (%%msg_end - %%msg)
     push dword (%%msg)
-    extern bochs_safe_debug_print
-    call bochs_safe_debug_print
+    extern WSL9X_Debug_Print
+    call WSL9X_Debug_Print
     add esp, 8
 section .data
     %%msg db %1, 10

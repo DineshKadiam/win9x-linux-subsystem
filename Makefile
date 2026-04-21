@@ -9,7 +9,7 @@ wsl9x-include = \
 	-I $(LINUX)/include \
 	-I $(LINUX)/arch/um/os-Win95/include
 
-vxd-objs = vxd/wsl9x.o vxd/loader.o vxd/cvxdwrap.o vxd/vxdwraps.o vxd/fs.o vxd/fault.o vxd/entry.o vxd/console.o vxd/v86_api.o
+vxd-objs = vxd/wsl9x.o vxd/debug.o vxd/loader.o vxd/cvxdwrap.o vxd/vxdwraps.o vxd/fs.o vxd/fault.o vxd/entry.o vxd/console.o vxd/v86_api.o vxd/services.o
 vxd-deps = $(vxd-objs:.o=.d)
 vxd-nasm-flags = -Iddk -Ivxd -Iinc -felf32 -w-pp-macro-params-legacy
 vxd-cc = i386-linux-musl-gcc

@@ -30,8 +30,15 @@ extern wsl9x__irq
 extern wsl9x__user_page_fault
 extern wsl9x__user_syscall
 extern wsl9x_v86_api
+extern printf
+extern debug_init
+
 
 section .data
+
+%define Create_Service_Table_WSL9X
+extern WSL9X_Service_Table
+extern Num_WSL9X_Services
 
 Declare_Virtual_Device WSL9X, "WSL9X", 1, 0, WSL9X_DEVICE_ID, UNDEFINED_INIT_ORDER, wsl9x_v86_api, 0
 
@@ -65,17 +72,9 @@ WSL9X_Control:
 
 
 sys_critical_init:
-    Debug_Log "wsl9x: sys_critical_init"
-
-    VMMCall _CreateMutex, 0, 1 ; flag=MUTEX_MUST_COMPLETE
-    test eax, eax
-    jz .create_mutex_err
-    mov [printf_mutex], eax
-
+    call debug_init
     clc
     ret
-.create_mutex_err:
-    Fatal_Error "VMM_CreateMutex failed"
 
 device_init:
     Debug_Log "wsl9x: device_init"
@@ -256,34 +255,3 @@ trap_pm_pf:
 
 trap_pm_ud:
     dispatch_fault TRAP_UD | FAULT_PM, pm_ud
-
-;; Debug logging
-
-global printf
-printf:
-    ; take printf mutex
-    ; VMMCall _EnterMutex, [printf_mutex], 0
-    ; save our return address so that _Sprintf can see the rest of our args
-    ; up the stack. prepend buffer argument
-    pop dword [printf_return]
-    VMMCall _Sprintf, printf_buffer
-    ; restore return address
-    push dword [printf_return]
-    ; setup proper stack frame now
-    push ebp
-    mov ebp, esp
-    ; sprintf returns count in eax
-    push eax
-    push printf_buffer
-    call WSL9x_Printk
-    add esp, 8
-    ; unlock mutex and return
-    ; VMMCall _LeaveMutex, [printf_mutex]
-    leave
-    ret
-
-
-section .bss
-printf_mutex resd 1
-printf_return resd 1
-printf_buffer resb 256

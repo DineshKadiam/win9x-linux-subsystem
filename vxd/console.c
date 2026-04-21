@@ -115,7 +115,7 @@ static ssize_t console_put(u32 vtermno, const u8* buf, size_t len)
     }
 
     if (vtermno == 0) {
-        WSL9x_Printk((const char*)buf, len);
+        WSL9X_Debug_Print((const char*)buf, len);
     }
 
     // just discard all data if the console is not attached
