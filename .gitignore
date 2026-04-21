@@ -6,3 +6,4 @@
 *.com
 /compile_commands.json
 /vmlinux*
+/fixlink

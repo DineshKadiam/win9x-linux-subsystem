@@ -50,9 +50,9 @@ hdd.img:
 	mcopy -Do system.ini c:/windows/
 	mcopy -Do vmlinux.elf C:/VMLINUX.ELF
 
-wsl9x.vxd: $(vxd-objs) vxd/link.def fixlink/fixlink
+wsl9x.vxd: $(vxd-objs) vxd/link.def fixlink
 	wlink @vxd/link.def $(vxd-objs:%=file %)
-	fixlink/fixlink -vxd32 $@
+	./fixlink -vxd32 $@
 
 wsl.com: wsl/wsl.asm
 	nasm $(com-nasm-flags) -o $@ $<
@@ -63,7 +63,7 @@ vxd/%.o: vxd/%.asm
 vxd/%.o: vxd/%.c
 	$(vxd-cc) $(vxd-c-flags) -MD -o $@ -c $<
 
-fixlink/fixlink: fixlink/fixlink.c
+fixlink: fixlink.c
 	gcc -std=c89 -Wall -Dstricmp=strcasecmp -include strings.h -o $@ $<
 
 vmlinux.elf: vmlinux
