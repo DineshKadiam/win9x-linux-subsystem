@@ -60,7 +60,6 @@ static void make_start_params(struct wsl9x_entry* entry)
     int argc = sizeof(argv) / sizeof(*argv);
 
     entry->reason = WSL9X_START;
-    entry->as.start.services = &wsl9x_services;
     entry->as.start.argc = argc;
     entry->as.start.argv = argv;
     entry->as.start.envp = envp;

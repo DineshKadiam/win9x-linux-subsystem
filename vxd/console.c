@@ -105,7 +105,7 @@ static struct console* get_console(u32 vtermno)
     return &consoles[vtermno];
 }
 
-static ssize_t console_put(u32 vtermno, const u8* buf, size_t len)
+ssize_t WSL9X_Console_Put(u32 vtermno, const u8* buf, size_t len)
 {
     // printf("console_put: vtermno=%lu buf=%lx len=%lu\n", vtermno, (ulong)buf, len);
 
@@ -129,7 +129,7 @@ static ssize_t console_put(u32 vtermno, const u8* buf, size_t len)
     return n;
 }
 
-static ssize_t console_get(u32 vtermno, u8* buf, size_t len)
+ssize_t WSL9X_Console_Get(u32 vtermno, u8* buf, size_t len)
 {
     struct console* con = get_console(vtermno);
     if (!con) {
@@ -158,12 +158,6 @@ void wsl9x_console_check_sched(void)
         }
     }
 }
-
-
-const struct wsl9x_services wsl9x_services = {
-    .console_get = console_get,
-    .console_put = console_put,
-};
 
 static struct console* find_console(HVM vm)
 {

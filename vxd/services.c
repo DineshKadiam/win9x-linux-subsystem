@@ -30,6 +30,8 @@ wsl9x_service_t WSL9X_Service_Table[] = {
     [WSL9X__DEBUG_PRINTF] = printf,
     [WSL9X__LOG_INFO] = WSL9X_Log_Info,
     [WSL9X__LOG_WARN] = WSL9X_Log_Warn,
+    [WSL9X__CONSOLE_PUT] = WSL9X_Console_Put,
+    [WSL9X__CONSOLE_GET] = WSL9X_Console_Get,
 };
 
 const u32 Num_WSL9X_Services = sizeof(WSL9X_Service_Table) / sizeof(*WSL9X_Service_Table);
