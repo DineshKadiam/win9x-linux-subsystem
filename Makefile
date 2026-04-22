@@ -69,4 +69,7 @@ fixlink: fixlink.c
 vmlinux.elf: vmlinux
 	strip -o $@ $<
 
+vmlinux:
+	ln -nsf $(LINUX)/vmlinux vmlinux
+
 -include $(vxd-deps)
