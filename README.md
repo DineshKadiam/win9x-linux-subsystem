@@ -4,6 +4,8 @@ Windows 9x Subsystem for Linux.
 
 WSL9x runs a modern Linux kernel (6.19 at time of writing) cooperatively inside the Windows 9x kernel, enabling users to take advantage of the full suite of capabilities of both operating systems at the same time, including paging, memory protection, and pre-emptive scheduling. Run all your favourite applications side by side - no rebooting required!
 
+Proudly written without AI.
+
 ![](screenshot.png)
 
 ## Building and running
