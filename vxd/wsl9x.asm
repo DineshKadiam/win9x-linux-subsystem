@@ -2,8 +2,6 @@
 %include "prelude.asm"
 %include "wsl9x_v86.asm"
 
-%define PAGE_SIZE 0x1000
-
 %define FAULT_MASK (0xff << 8)
 %define FAULT_VMM  (0x01 << 8)
 %define FAULT_PM   (0x02 << 8)
@@ -81,24 +79,6 @@ device_init:
     ret
 
 
-thread_init_callback:
-    push .msg
-    call printf
-    add esp, 4
-
-    xchg bx, bx
-    ud2
-    ret
-    .msg db "thread_init_callback", 10, 0
-
-
-do_create_vm:
-    mov eax, CREATE_VM
-    xor ebx, ebx
-    VMMCall System_Control
-    ret
-
-
 sys_vm_init:
     Debug_Log "wsl9x: sys_vm_init"
 
@@ -119,8 +99,6 @@ sys_vm_init:
 
 
 kernel32_init:
-    ; jmp .out
-
     VMMCall VMMCreateThread, ss, 0x4000000, cs, 0x40000000, ds, es, WSL9X_THREAD_TYPE, thread_init_callback, 0
     test eax, eax
     jz .create_thread_err
@@ -136,6 +114,10 @@ kernel32_init:
     ret
 .create_thread_err:
     Fatal_Error "VMMCreateThread failed"
+
+
+thread_init_callback:
+    ret
 
 
 %macro install_fault 3
