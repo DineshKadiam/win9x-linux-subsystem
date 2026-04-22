@@ -170,7 +170,7 @@ static struct console* find_console(HVM vm)
     return NULL;
 }
 
-int wsl9x_v86_start_console(HVM vm, u8* buffer)
+int wsl9x_v86_start_console(HVM vm)
 {
     for (size_t i = 0; i < MAX_VTERMS; i++) {
         if (consoles[i].owner == NULL) {

@@ -18,7 +18,6 @@ static void* entry_stack;
 
 extern HTHREAD wsl9x_thread;
 extern HCONTEXT wsl9x_context;
-// extern HVM wsl9x_vm;
 
 static HSEMAPHORE wsl9x_semaphore;
 
@@ -146,7 +145,6 @@ static bool kernel_one_loop(struct wsl9x_entry* entry)
     // handle kernel result
     switch (entry->result) {
     case WSL9X_IDLE:
-        // printf("kernel idle\n");
         idle();
         break;
     case WSL9X_YIELD:
@@ -154,7 +152,6 @@ static bool kernel_one_loop(struct wsl9x_entry* entry)
         // no time slice release until i can prove it's actually doing anything
         break;
     case WSL9X_USER:
-        // printf("return to user\n");
         return false;
     case WSL9X_PANIC:
         handle_panic(entry->panic_msg);
@@ -163,7 +160,6 @@ static bool kernel_one_loop(struct wsl9x_entry* entry)
     // setup entry to go around again
     enum wsl9x_irq irq = pop_irq();
     if (irq) {
-        printf("dispatching IRQ %d\n", irq);
         entry->reason = WSL9X_IRQ;
         entry->as.irq = irq;
     } else {
@@ -204,7 +200,6 @@ void wsl9x_irq(enum wsl9x_irq irq)
 
 void wsl9x__user_page_fault(u32 fault_addr)
 {
-    printf("kernel page fault: %08lx\n", fault_addr);
     struct wsl9x_entry entry = { 0 };
     entry.reason = WSL9X_PAGE_FAULT;
     entry.as.page_fault.addr = fault_addr;
