@@ -1,0 +1,11 @@
+# setup paths
+export WATCOM=/opt/watcom
+export LINUX=$HOME/code/linux
+export MTOOLSRC=mtoolsrc
+
+# add binstubs
+PATH_add bin
+
+# add musl cross compiler
+MUSL_ROOT="$HOME/cross/i386-linux-musl"
+PATH_add "$MUSL_ROOT/bin"
