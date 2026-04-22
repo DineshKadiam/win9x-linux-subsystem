@@ -8,7 +8,7 @@
 #include <wsl9x/mem.h>
 
 static const u32 KERNEL_ADDR = 0xd0000000;
-static const u32 KERNEL_SIZE = 0x68e000;
+static const u32 KERNEL_SIZE = 0x700000;
 static const u32 PAGE_SIZE = 0x1000;
 static const u32 BUFFER_SIZE = 0x8000;
 

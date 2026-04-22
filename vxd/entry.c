@@ -49,8 +49,8 @@ static void make_start_params(struct wsl9x_entry* entry)
 {
     static char* argv[] = {
         "vmlinux",
-        "init=/bin/sh",
-        "rdinit=/bin/sh",
+        "init=/boot.sh",
+        "rdinit=/boot.sh",
         // prevent user processes from mapping in dos arena:
         "vm.mmap_min_addr=16777216", // 0x01000000
     };
