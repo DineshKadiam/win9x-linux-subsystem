@@ -1,8 +1,9 @@
 #include "prelude.h"
 #include "console.h"
 #include "entry.h"
-#include "vxdwraps.h"
 #include "ringbuf.h"
+#include "vxdwraps.h"
+#include <linux/compiler_types.h>
 #include <wsl9x/entry.h>
 #include <wsl9x/task.h>
 
@@ -31,8 +32,6 @@ static struct console* get_console(u32 vtermno)
 
 ssize_t WSL9X_Console_Put(u32 vtermno, const u8* buf, size_t len)
 {
-    // printf("console_put: vtermno=%lu buf=%lx len=%lu\n", vtermno, (ulong)buf, len);
-
     struct console* con = get_console(vtermno);
     if (!con) {
         return -1;
@@ -86,7 +85,7 @@ void wsl9x_console_check_sched(void)
         if (!ringbuf_empty(&con->out) && !con->scheduled) {
             printf("scheduling console for vm=%08lx\n", (ulong)con->owner);
             con->scheduled = true;
-            wsl9x_v86_schedule_console_output(con->owner);
+            wsl9x_schedule_console_output(con->owner);
         }
     }
 }
@@ -160,19 +159,59 @@ void wsl9x_v86__console_output(void)
 {
     HVM vm = VMM_Get_Cur_VM_Handle();
     struct console* con = find_console(vm, 0);
-    if (!con) {
+    if (!con || !ringbuf_valid(&con->out)) {
         return;
     }
 
-    u8 buf[1];
-    size_t n;
-    while ((n = ringbuf_get(&con->out, buf, sizeof(buf)))) {
-        for (size_t i = 0; i < n; i++) {
-            wsl9x_v86__write_output(buf[i]);
-        }
+    struct VMM_Client_Regs saved;
+    VMM_Save_Client_State(&saved);
+    VMM_Begin_Nest_V86_Exec();
+
+    struct VMM_Client_Regs* regs = VMM_Get_Cur_VM_Handle()->Client_Pointer;
+
+    u8 byte;
+    while (ringbuf_get(&con->out, &byte, 1)) {
+        regs->EAX = byte;
+        VMM_Exec_Int(0x29);
     }
 
     con->scheduled = false;
+    VMM_End_Nest_Exec();
+    VMM_Restore_Client_State(&saved);
 }
 
-void wsl9x_v86__write_output(u8 c);
+void wsl9x_v86_api_(HVM vm, struct VMM_Client_Regs* regs)
+{
+    u16 func = regs->EAX;
+
+    switch (func) {
+    case WSL9X_V86_API_START_CONSOLE:
+        regs->EAX = wsl9x_v86_start_console(vm);
+        break;
+    case WSL9X_V86_API_SEND_KEY:
+        regs->EAX = wsl9x_v86_send_key(vm, regs->EBX);
+        break;
+    default:
+        regs->EAX = -1;
+    }
+}
+
+__naked void wsl9x_v86_api(void)
+{
+    __asm__ volatile (
+        "pushl %ebp\n"
+        "pushl %ebx\n"
+        "call wsl9x_v86_api_\n"
+        "add $8, %esp\n"
+        "ret\n"
+    );
+}
+
+void wsl9x_schedule_console_output(HVM vm)
+{
+    VMM_Call_Priority_VM_Event(vm,
+        HIGH_PRI_DEVICE_BOOST,
+        PEF_ALWAYS_SCHED | PEF_WAIT_FOR_STI | PEF_WAIT_NOT_HW_INT,
+        wsl9x_v86__console_output,
+        0);
+}

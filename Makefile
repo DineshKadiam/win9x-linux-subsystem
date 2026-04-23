@@ -21,7 +21,6 @@ vxd-objs = \
 	vxd/loader.o \
 	vxd/ringbuf.o \
 	vxd/services.o \
-	vxd/v86_api.o \
 	vxd/vxdwraps.o \
 	vxd/wsl9x.o
 
