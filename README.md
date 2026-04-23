@@ -33,7 +33,7 @@ When `wsl.com` starts, it makes an initial call into the WSL9x V86 API ([vxd/v86
 * Build a patched Linux kernel from my [`win9x-um-6.19` branch](https://github.com/haileys/linux/tree/win9x-um-6.19)
 
    ```sh-session
-   $ make defconfig ARCH=um SUBARCH=i386 KBUILD_DEFCONFIG=win9x
+   $ make win9x_defconfig ARCH=um SUBARCH=i386
    $ make vmlinux ARCH=um SUBARCH=i386 -j $(nproc)
    ```
 
