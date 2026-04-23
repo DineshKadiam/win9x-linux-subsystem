@@ -31,6 +31,18 @@ void VMM_Wait_Semaphore(HSEMAPHORE, enum Semaphore_Wait_Flags);
 typedef struct VMM_Event* HEVENT;
 HEVENT VMM_Schedule_Thread_Event(HTHREAD thread, void* callback, void* data);
 
+HEVENT VMM_Call_Priority_VM_Event(HVM vm, u32 boost, u32 flags, void* callback, void* data);
+#define HIGH_PRI_DEVICE_BOOST   0x1000
+#define PEF_ALWAYS_SCHED        (1 << 3)
+#define PEF_WAIT_FOR_STI        (1 << 0)
+#define PEF_WAIT_NOT_HW_INT     (1 << 5)
+
+void VMM_Save_Client_State(struct VMM_Client_Regs* regs);
+void VMM_Restore_Client_State(const struct VMM_Client_Regs* regs);
+void VMM_Begin_Nest_V86_Exec(void);
+void VMM_Exec_Int(u8 interrupt);
+void VMM_End_Nest_Exec(void);
+
 struct VWIN32_VSEB {
     u32 resp;
     u16 b3;

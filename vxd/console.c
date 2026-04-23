@@ -212,8 +212,9 @@ int wsl9x_v86_send_key(HVM vm, u16 keycode)
     return 0;
 }
 
-void wsl9x_v86__console_output(HVM vm)
+void wsl9x_v86__console_output(void)
 {
+    HVM vm = VMM_Get_Cur_VM_Handle();
     struct console* con = find_console(vm);
     if (!con) {
         return;

@@ -1,5 +1,7 @@
 #pragma once
 
+#define __KERNEL__
+
 typedef _Bool bool;
 #define true 1
 #define false 0
