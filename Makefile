@@ -51,9 +51,8 @@ hdd.img: hdd.base.img wsl.com wsl9x.vxd vmlinux.elf config.sys system.ini
 	mcopy -Do system.ini c:/windows/
 	mcopy -Do vmlinux.elf C:/VMLINUX.ELF
 
-wsl9x.vxd: export PATH=$(WATCOM)/binl
 wsl9x.vxd: $(vxd-objs) vxd/link.def fixlink
-	wlink @vxd/link.def $(vxd-objs:%=file %)
+	bin/wlink @vxd/link.def $(vxd-objs:%=file %)
 	./fixlink -vxd32 $@
 
 wsl.com: wsl/wsl.asm
