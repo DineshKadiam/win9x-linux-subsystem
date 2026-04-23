@@ -10,7 +10,6 @@ typedef void(*vmm_fault_proc_t)(void);
 vmm_fault_proc_t VMM_Hook_VMM_Fault(u8 vector, vmm_fault_proc_t handler);
 
 VMM_VMCB* VMM_Get_Cur_VM_Handle(void);
-VMM_VMCB* VMM_Get_Sys_VM_Handle(void);
 
 u32 SHELL_SYSMODAL_Message(VMM_VMCB* vm, u32 flags, const char* caption, const char* message);
 #define MB_OK               0x0000
@@ -28,22 +27,6 @@ HSEMAPHORE VMM_Create_Semaphore(u32 tokens);
 void VMM_Signal_Semaphore(HSEMAPHORE);
 void VMM_Signal_Semaphore_No_Switch(HSEMAPHORE);
 void VMM_Wait_Semaphore(HSEMAPHORE, enum Semaphore_Wait_Flags);
-
-void VMM_Release_Time_Slice(void);
-void VMM_Time_Slice_Sleep(u32 milliseconds);
-
-void VMM_Suspend_VM(HVM vm);
-void VMM_Resume_VM(HVM vm);
-
-struct Thread_Win32_Pri {
-    u32 base_priority;
-    u32 current_priority;
-    u32 time_decay_boost;
-    u32 inversion_priority;
-};
-
-void VMM_Get_Thread_Win32_Pri(HTHREAD thread, struct Thread_Win32_Pri* out);
-bool VMM_Set_Thread_Win32_Pri(HTHREAD thread, u32 priority);
 
 typedef struct VMM_Event* HEVENT;
 HEVENT VMM_Schedule_Thread_Event(HTHREAD thread, void* callback, void* data);
