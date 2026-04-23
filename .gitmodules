@@ -1,0 +1,4 @@
+[submodule "linux"]
+	path = linux
+	branch = win9x-um-6.19
+	url = https://github.com/haileys/linux
