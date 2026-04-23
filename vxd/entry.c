@@ -124,19 +124,13 @@ static enum wsl9x_irq pop_irq(void)
     return 0;
 }
 
-static void entry_stack_top(u32 param)
-{
-    struct wsl9x_entry* entry = (void*)param;
-    kernel_entry(entry);
-}
-
 static bool kernel_one_loop(struct wsl9x_entry* entry)
 {
     assert_kernel_thread();
 
     // dispatch to kernel
     VMM_EnterMutex(entry_mutex, MUTEX_MUST_COMPLETE);
-    VMM_Call_On_My_Stack(entry_stack_top, (u32)entry, entry_stack + STACK_SIZE, STACK_SIZE);
+    VMM_Call_On_My_Stack((void*)kernel_entry, (u32)entry, entry_stack + STACK_SIZE, STACK_SIZE);
     VMM_LeaveMutex(entry_mutex);
 
     // schedule any necessary work outside of kernel
