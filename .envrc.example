@@ -1,6 +1,5 @@
 # setup paths
 export WATCOM=/opt/watcom
-export LINUX=$HOME/code/linux
 export MTOOLSRC=mtoolsrc
 
 # add binstubs

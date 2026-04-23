@@ -1,6 +1,8 @@
-ifndef LINUX
-LINUX = $(error must define LINUX env var)
+ifndef WATCOM
+WATCOM = $(error must set WATCOM env)
 endif
+
+LINUX ?= linux
 
 CFLAGS = -std=c11 -Wall -Wextra -Werror -Wstrict-prototypes -funsigned-char \
 	-Wno-error=unused-parameter -Wno-error=unused-function -Wno-error=unused-variable
@@ -39,9 +41,8 @@ compile_commands.json: clean
 	bear -- make wsl9x.vxd
 
 .PHONY: hdd.img
-hdd.img: hdd.base.img wsl.com wsl9x.vxd vmlinux.elf config.sys system.ini
 hdd.img: export MTOOLSRC=mtoolsrc
-hdd.img:
+hdd.img: hdd.base.img wsl.com wsl9x.vxd vmlinux.elf config.sys system.ini
 	cp hdd.base.img $@
 	rm -f $@.lock
 	mcopy -Do wsl9x.vxd c:/windows/system/WSL9X.VXD
@@ -50,6 +51,7 @@ hdd.img:
 	mcopy -Do system.ini c:/windows/
 	mcopy -Do vmlinux.elf C:/VMLINUX.ELF
 
+wsl9x.vxd: export PATH=$(WATCOM)/binl
 wsl9x.vxd: $(vxd-objs) vxd/link.def fixlink
 	wlink @vxd/link.def $(vxd-objs:%=file %)
 	./fixlink -vxd32 $@
@@ -66,10 +68,16 @@ vxd/%.o: vxd/%.c
 fixlink: fixlink.c
 	gcc -std=c89 -Wall -Dstricmp=strcasecmp -include strings.h -o $@ $<
 
-vmlinux.elf: vmlinux
+vmlinux.elf: $(LINUX)/vmlinux
 	strip -o $@ $<
 
-vmlinux:
-	ln -nsf $(LINUX)/vmlinux vmlinux
+.PHONY: build-linux
+build-linux:
+	make -C $(LINUX) win9x_defconfig ARCH=um SUBARCH=i386
+	make -C $(LINUX) vmlinux ARCH=um SUBARCH=i386
+
+.PHONY: build-linux
+clean-linux:
+	make -C $(LINUX) clean
 
 -include $(vxd-deps)

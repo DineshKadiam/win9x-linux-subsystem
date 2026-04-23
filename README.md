@@ -28,16 +28,14 @@ When `wsl.com` starts, it makes an initial call into the WSL9x V86 API ([vxd/v86
 
 * You will need a cross toolchain targeting `i386-linux-musl` on PATH. Use [musl-cross-make](https://github.com/richfelker/musl-cross-make) to build one
 
-* You will need the Open Watcom v2 toolchain for building the Windows components
+* You will need the Open Watcom v2 toolchain for building the Windows components. Set the `WATCOM` env var to the prefix where you installed it. On my machine, that's `/opt/watcom`.
 
-* Build a patched Linux kernel from my [`win9x-um-6.19` branch](https://github.com/haileys/linux/tree/win9x-um-6.19)
+* Build the patched Linux kernel. This is a manual step because building the kernel takes quite a long time.
 
    ```sh-session
-   $ make win9x_defconfig ARCH=um SUBARCH=i386
-   $ make vmlinux ARCH=um SUBARCH=i386 -j $(nproc)
+   $ git submodule update --init # make sure linux submodule is up to date
+   $ make build-linux -j $(nproc)
    ```
-
-* Set env vars appropriately for the WSL9x build, in particular you will need to point `WATCOM` and `LINUX` at the right places. See `.envrc.example` for an example
 
 * You will need a hard drive image `hdd.base.img` with Windows 9x pre-installed
 
