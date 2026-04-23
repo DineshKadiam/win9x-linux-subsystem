@@ -86,20 +86,28 @@ static bool read_struct(FileHandle kernel, void* out, size_t size)
     return true;
 }
 
+static void memzero(u8* ptr, ulong size)
+{
+    while (size--) {
+        *ptr++ = 0;
+    }
+}
+
 static bool load_segment(FileHandle kernel, Elf32_Phdr* phdr)
 {
     if (phdr->p_type != PT_LOAD) {
         return true;
     }
 
-    printf("wsl9x: LOAD 0x%08lx: size %lu, file offset %lu, flags %lx\n",
+    printf("wsl9x: LOAD 0x%08lx: memsz %lu, filesz %lu, file offset %lu, flags %lx\n",
         phdr->p_vaddr,
+        phdr->p_memsz,
         phdr->p_filesz,
         phdr->p_offset,
         phdr->p_flags);
 
-    if (phdr->p_filesz != phdr->p_memsz) {
-        printf("  filesz != memsz\n");
+    if (phdr->p_memsz < phdr->p_filesz) {
+        printf("  memsz < filesz\n");
         return false;
     }
 
@@ -111,8 +119,8 @@ static bool load_segment(FileHandle kernel, Elf32_Phdr* phdr)
     u32 offset = 0;
     u8* load_ptr = (u8*)phdr->p_vaddr;
 
-    while (offset < phdr->p_memsz) {
-        u32 size = phdr->p_memsz - offset;
+    while (offset < phdr->p_filesz) {
+        u32 size = phdr->p_filesz - offset;
         if (size > BUFFER_SIZE) {
             size = BUFFER_SIZE;
         }
@@ -128,6 +136,10 @@ static bool load_segment(FileHandle kernel, Elf32_Phdr* phdr)
         load_ptr += size;
         offset += size;
     }
+
+    memzero(load_ptr, phdr->p_memsz - offset);
+
+    printf("\n");
 
     return true;
 }
