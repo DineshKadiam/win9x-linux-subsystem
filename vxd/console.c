@@ -2,87 +2,15 @@
 #include "console.h"
 #include "entry.h"
 #include "vxdwraps.h"
+#include "ringbuf.h"
 #include <wsl9x/entry.h>
 #include <wsl9x/task.h>
 
 #define MAX_VTERMS 8
-#define RINGBUF_SIZE 1024 // must be power of two
+#define BUFFER_OUT_SIZE 2048
+#define BUFFER_IN_SIZE 32
 
 static bool need_sched = false;
-
-struct ringbuf {
-    size_t write, read;
-    u8 buf[RINGBUF_SIZE];
-#ifdef DEBUG_RINGBUF
-    const char* name;
-#endif
-};
-
-static bool ringbuf_empty(const struct ringbuf* rb)
-{
-    return rb->write == rb->read;
-}
-
-static bool ringbuf_full(const struct ringbuf* rb)
-{
-    return (rb->write - rb->read) == RINGBUF_SIZE;
-}
-
-static size_t ringbuf_put(struct ringbuf* rb, const u8* data, size_t size)
-{
-    size_t n = 0;
-
-#ifdef DEBUG_RINGBUF
-    printf("ringbuf_put[%s]: write=%lu, read=%lu\n", rb->name, rb->write, rb->read);
-    printf("                 size=%lu\n", size);
-    printf("                 data='");
-#endif
-
-    while (n < size && !ringbuf_full(rb)) {
-        char c = data[n++];
-
-#ifdef DEBUG_RINGBUF
-        printf("%c", c == '\n' ? '.' : c);
-#endif
-
-        rb->buf[rb->write++ % RINGBUF_SIZE] = c;
-    }
-
-#ifdef DEBUG_RINGBUF
-    printf("'\n");
-    printf("                 n=%lu\n", n);
-#endif
-
-    return n;
-}
-
-static size_t ringbuf_get(struct ringbuf* rb, u8* data, size_t size)
-{
-    size_t n = 0;
-
-#ifdef DEBUG_RINGBUF
-    printf("ringbuf_get[%s]: write=%lu, read=%lu\n", rb->name, rb->write, rb->read);
-    printf("                 size=%lu\n", size);
-    printf("                 data='");
-#endif
-
-    while (n < size && !ringbuf_empty(rb)) {
-        char c = rb->buf[rb->read++ % RINGBUF_SIZE];
-
-#ifdef DEBUG_RINGBUF
-        printf("%c", c == '\n' ? '.' : c);
-#endif
-
-        data[n++] = c;
-    }
-
-#ifdef DEBUG_RINGBUF
-    printf("'\n");
-    printf("                 n=%lu\n", n);
-#endif
-
-    return n;
-}
 
 struct console {
     HVM owner;
@@ -97,11 +25,6 @@ static struct console* get_console(u32 vtermno)
     if (vtermno >= MAX_VTERMS) {
         return NULL;
     }
-
-#ifdef DEBUG_RINGBUF
-    consoles[vtermno].in.name = "IN";
-    consoles[vtermno].out.name = "OU";
-#endif
 
     return &consoles[vtermno];
 }
@@ -120,12 +43,11 @@ ssize_t WSL9X_Console_Put(u32 vtermno, const u8* buf, size_t len)
     }
 
     // just discard all data if the console is not attached
-    if (!con->owner) {
+    if (!con->owner || !ringbuf_valid(&con->out)) {
         return len;
     }
 
     size_t n = ringbuf_put(&con->out, buf, len);
-    // printf("ringbuf_put: n=%lu len=%lu", n, len);
     need_sched = true;
     return n;
 }
@@ -134,7 +56,13 @@ ssize_t WSL9X_Console_Get(u32 vtermno, u8* buf, size_t len)
 {
     struct console* con = get_console(vtermno);
     if (!con) {
-        return -1;
+        // no such device
+        return 0;
+    }
+
+    if (!ringbuf_valid(&con->in)) {
+        // not attached
+        return 0;
     }
 
     return ringbuf_get(&con->in, buf, len);
@@ -150,20 +78,27 @@ void wsl9x_console_check_sched(void)
 
     for (size_t i = 0; i < MAX_VTERMS; i++) {
         struct console* con = &consoles[i];
+
+        if (!con->owner || !ringbuf_valid(&con->out)) {
+            continue;
+        }
+
         if (!ringbuf_empty(&con->out) && !con->scheduled) {
-#ifndef DEBUG_CONSOLE
             printf("scheduling console for vm=%08lx\n", (ulong)con->owner);
-#endif
             con->scheduled = true;
             wsl9x_v86_schedule_console_output(con->owner);
         }
     }
 }
 
-static struct console* find_console(HVM vm)
+static struct console* find_console(HVM vm, size_t* num)
 {
     for (size_t i = 0; i < MAX_VTERMS; i++) {
-        if (consoles[i].owner == vm) {;
+        if (consoles[i].owner == vm) {
+            if (num) {
+                *num = i;
+            }
+
             return &consoles[i];
         }
     }
@@ -173,18 +108,27 @@ static struct console* find_console(HVM vm)
 
 int wsl9x_v86_start_console(HVM vm)
 {
-    for (size_t i = 0; i < MAX_VTERMS; i++) {
-        if (consoles[i].owner == NULL) {
-#ifdef DEBUG_RINGBUF
-            consoles[i].in.name = "IN";
-            consoles[i].out.name = "OU";
-#endif
-            consoles[i].owner = vm;
-            printf("starting new console on vtermno=%lu\n", i);
-            return 0;
-        }
+    // find free console
+    size_t i;
+    struct console* con = find_console(NULL, &i);
+    if (!con) {
+        goto fail;
     }
 
+    if (!ringbuf_init(&con->in, BUFFER_IN_SIZE)) {
+        goto fail;
+    }
+
+    if (!ringbuf_init(&con->out, BUFFER_OUT_SIZE)) {
+        goto fail;
+    }
+
+    printf("starting new console on vtermno=%lu\n", i);
+    con->owner = vm;
+    return 0;
+
+fail:
+    printf("cannot allocate console\n");
     return -1;
 }
 
@@ -196,7 +140,7 @@ int wsl9x_v86_send_key(HVM vm, u16 keycode)
 #ifndef DEBUG_CONSOLE
     printf("wsl9x_v86_send_key: vm=%08lx keycode=%04x\n", (ulong)vm, keycode);
 #endif
-    struct console* con = find_console(vm);
+    struct console* con = find_console(vm, 0);
     if (!con) {
         return -1;
     }
@@ -215,7 +159,7 @@ int wsl9x_v86_send_key(HVM vm, u16 keycode)
 void wsl9x_v86__console_output(void)
 {
     HVM vm = VMM_Get_Cur_VM_Handle();
-    struct console* con = find_console(vm);
+    struct console* con = find_console(vm, 0);
     if (!con) {
         return;
     }

@@ -22,6 +22,8 @@ def_vmm_cproc VMM_Call_On_My_Stack, 4
 def_vmm_cproc VMM_CreateMutex, 2
 def_vmm_cproc VMM_EnterMutex, 2
 def_vmm_cproc VMM_LeaveMutex, 1
+def_vmm_cproc VMM_HeapAllocate, 2
+def_vmm_cproc VMM_HeapFree, 2
 
 global VMM_Get_Cur_Thread_Handle
 VMM_Get_Cur_Thread_Handle:

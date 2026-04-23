@@ -51,3 +51,6 @@ struct VWIN32_VSEB {
     const char* caption;
     const char* text;
 } VWIN32_VSEB;
+
+void* VMM_HeapAllocate(ulong nbytes, ulong flags);
+void VMM_HeapFree(void* ptr, ulong flags);
