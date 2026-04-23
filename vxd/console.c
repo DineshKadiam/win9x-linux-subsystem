@@ -1,7 +1,8 @@
+#include "prelude.h"
 #include "console.h"
 #include "entry.h"
-#include "wsl9x/entry.h"
-
+#include "vxdwraps.h"
+#include <wsl9x/entry.h>
 #include <wsl9x/task.h>
 
 #define MAX_VTERMS 8
@@ -66,7 +67,7 @@ static size_t ringbuf_get(struct ringbuf* rb, u8* data, size_t size)
 #endif
 
     while (n < size && !ringbuf_empty(rb)) {
-        char c = rb->buf[rb->read++];
+        char c = rb->buf[rb->read++ % RINGBUF_SIZE];
 
 #ifdef DEBUG_RINGBUF
         printf("%c", c == '\n' ? '.' : c);
