@@ -7,10 +7,8 @@ start:
     cli
 
     call init_wsl_api
-    ; call hook_kb_irq
 
     ; start console
-    mov di, buffer
     mov ax, WSL9X_V86_API_START_CONSOLE
     call far [wsl9x_api]
 
@@ -47,24 +45,6 @@ have_key:
     jmp idle
 
 
-hook_kb_irq:
-    ; get original int 9 (IRQ 1, keyboard)
-    mov ax, 0x3509
-    int 0x21
-
-    mov [orig_kb_irq.off], bx
-    mov [orig_kb_irq.seg], es
-
-    ; hook with ours
-    mov ax, 0x2509
-    mov dx, kb_irq
-    int 0x21
-    ret
-
-kb_irq:
-    jmp far [orig_kb_irq]
-
-
 init_wsl_api:
     ; obtain WSL9X API entry point
     mov ax, 0x1684
@@ -93,14 +73,6 @@ error:
     mov ax, 0x4c01
     int 0x21
 
-data:
-
 wsl9x_api:
     .off dw 0
     .seg dw 0
-orig_kb_irq:
-    .off dw 0
-    .seg dw 0
-
-buffer:
-    db "hello world"
