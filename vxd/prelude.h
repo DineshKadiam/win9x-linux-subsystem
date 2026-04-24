@@ -26,6 +26,10 @@ size_t VMM_Sprintf(char* out, const char* format, ...)
 void printf(const char* format, ...)
     __attribute__((format(printf, 1, 2)));
 
+#define debugf(format, ...) printf("%s: " format "\n", __func__ __VA_OPT__(,) __VA_ARGS__)
+#define infof(format, ...) printf("%s: " format "\n", __func__ __VA_OPT__(,) __VA_ARGS__)
+#define warnf(format, ...) printf("%s: " format "\n", __func__ __VA_OPT__(,) __VA_ARGS__)
+
 static inline void memcpy32(void* dst, const void* src, size_t bytes)
 {
     size_t dwords = (bytes + 3) / 4;
