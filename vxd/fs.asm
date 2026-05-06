@@ -60,7 +60,7 @@ dos_seek:
 
     xor eax, eax
     mov ah, DOS_SEEK_FILE
-    movzx bx, word [arg(0)]
+    mov bx, [arg(0)]
     mov ecx, [arg(1)]
     mov dx, cx
     shr ecx, 16
