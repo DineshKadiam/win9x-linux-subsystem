@@ -1,3 +1,5 @@
+> Originally developed at [codeberg.org/hails/wsl9x](https://codeberg.org/hails/wsl9x) · GPL-3
+
 # WSL9x
 
 Windows 9x Subsystem for Linux.
